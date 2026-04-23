@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4f0e8;
+  --surface: #fbf8f2;
+  --foreground: #1f2a36;
+  --muted: #5f6771;
+  --line: #d3cab9;
+  --olive: #617a42;
+  --wheat: #b8913d;
+  --copper: #aa5b35;
+  --sea: #2e6f86;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-manrope);
+  --font-display: var(--font-playfair);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-manrope), sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.maphouse-shell {
+  position: relative;
+  overflow: hidden;
+}
+
+.maphouse-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 10% 15%, rgb(184 145 61 / 15%), transparent 45%),
+    radial-gradient(circle at 85% 20%, rgb(46 111 134 / 12%), transparent 38%),
+    radial-gradient(circle at 45% 90%, rgb(97 122 66 / 10%), transparent 42%);
+  z-index: -1;
+}
+
+.paper-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  box-shadow: 0 16px 36px rgb(31 42 54 / 8%);
+}
