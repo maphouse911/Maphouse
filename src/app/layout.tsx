@@ -1,21 +1,30 @@
 import type { Metadata } from "next";
-import { Manrope, Playfair_Display } from "next/font/google";
 import "./globals.css";
+import TrafficSourceTracker from "@/components/TrafficSourceTracker";
 
-const manrope = Manrope({
-  variable: "--font-manrope",
-  subsets: ["latin"],
-});
-
-const playfair = Playfair_Display({
-  variable: "--font-playfair",
-  subsets: ["latin"],
-});
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
 export const metadata: Metadata = {
-  title: "MapHouse",
+  title: {
+    default: "MapHouse",
+    template: "%s",
+  },
+  metadataBase: new URL(siteUrl),
   description:
     "MapHouse is a map-first platform for exploring commodities, markets, and global change.",
+  openGraph: {
+    title: "MapHouse",
+    description:
+      "MapHouse is a map-first platform for exploring commodities, markets, and global change.",
+    images: [{ url: "/maphouse-logo.png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "MapHouse",
+    description:
+      "MapHouse is a map-first platform for exploring commodities, markets, and global change.",
+    images: ["/maphouse-logo.png"],
+  },
 };
 
 export default function RootLayout({
@@ -24,8 +33,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${manrope.variable} ${playfair.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="en" className="h-full antialiased">
+      <body className="min-h-full flex flex-col">
+        <TrafficSourceTracker />
+        {children}
+      </body>
     </html>
   );
 }

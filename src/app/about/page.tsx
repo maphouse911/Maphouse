@@ -1,14 +1,29 @@
+import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "About MapHouse",
+  description:
+    "Meet Vincent Chang and the MapHouse vision: map-driven analysis across finance, commodities, and global strategy.",
+};
 
 export default function AboutPage() {
   return (
     <div className="maphouse-shell min-h-screen px-6 py-8 md:px-10">
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-6">
         <header className="paper-card flex items-center justify-between px-6 py-4">
-          <Link href="/" className="font-[family-name:var(--font-display)] text-3xl font-semibold">
-            maphouse_
+          <Link href="/" className="flex items-center gap-3">
+            <Image
+              src="/maphouse-logo.png"
+              alt="MapHouse logo"
+              width={38}
+              height={38}
+              className="rounded-full border border-[var(--line)] bg-white/70"
+            />
+            <span className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight">maphouse_</span>
           </Link>
-          <Link href="/map" className="text-sm text-[var(--muted)]">
+          <Link href="/map" className="rounded-full border border-[var(--line)] bg-white/65 px-4 py-2 text-sm text-[var(--muted)]">
             Interactive Map
           </Link>
         </header>
@@ -40,4 +55,3 @@ export default function AboutPage() {
     </div>
   );
 }
-
