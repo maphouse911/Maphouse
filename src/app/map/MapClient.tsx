@@ -14,7 +14,7 @@ import {
   pipelineRoutesByCommodity,
   type PipelineRiskType,
 } from "@/lib/pipelineRoutes";
-import { commodityProfiles, commoditySections, commodityThemes, type CommodityKey } from "../data";
+import { commodityProfiles, commoditySections, commodityThemes, type CommodityKey, type CommodityProfile } from "../data";
 
 type MapLayer = "production" | "trade";
 type SiteKindFilter = "mine" | "field" | "terminal" | "basin" | "belt";
@@ -51,6 +51,37 @@ type DriverSignal = {
   updatedAt: string;
   sourceNote: string;
   sourceLinks: Array<{ label: string; href: string }>;
+};
+
+type MarketCandle = {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+};
+
+type MarketSnapshot = {
+  benchmark: string;
+  latest: string;
+  ytd: string;
+  volatility: string;
+  symbol: string;
+  source: string;
+  updatedAt: string;
+  stale?: boolean;
+  warning?: string;
+};
+
+type MarketSnapshotApiResponse = {
+  ok?: boolean;
+  source?: string;
+  stale?: boolean;
+  warning?: string;
+  symbol?: string;
+  updatedAt?: string;
+  candles?: MarketCandle[];
+  error?: string;
 };
 
 type NewsTone = "positive" | "negative" | "neutral";
@@ -112,6 +143,32 @@ const HS4_BY_COMMODITY: Record<CommodityKey, number> = {
   sugar: 41701,
   cotton: 115201,
   soybeanOil: 31507,
+};
+
+const PRICE_UNIT_BY_COMMODITY: Record<CommodityKey, string> = {
+  soybean: "bushel",
+  wheat: "bushel",
+  corn: "bushel",
+  coffee: "lb",
+  oil: "bbl",
+  aluminum: "tonne",
+  copper: "lb",
+  gold: "oz",
+  silver: "oz",
+  naturalGas: "MMBtu",
+  brent: "bbl",
+  nickel: "tonne",
+  zinc: "tonne",
+  lead: "tonne",
+  tin: "tonne",
+  cobalt: "tonne",
+  lithium: "tonne",
+  gallium: "kg",
+  germanium: "kg",
+  cocoa: "tonne",
+  sugar: "lb",
+  cotton: "lb",
+  soybeanOil: "lb",
 };
 
 const SECTION_HEADER_STYLES: Record<
@@ -240,6 +297,67 @@ function parseDriverScoreMagnitude(scoreLabel: string) {
   return Number.isFinite(value) ? Math.abs(value) : 0;
 }
 
+function formatSnapshotPrice(commodity: CommodityKey, value: number) {
+  const unit = PRICE_UNIT_BY_COMMODITY[commodity];
+  const decimals = Math.abs(value) >= 1000 ? 0 : Math.abs(value) >= 100 ? 2 : 3;
+  const formatted = new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: decimals,
+    minimumFractionDigits: Math.abs(value) >= 1000 ? 0 : 2,
+  }).format(value);
+  return `US$ ${formatted} / ${unit}`;
+}
+
+function formatSignedPercent(value: number) {
+  if (!Number.isFinite(value)) return "--";
+  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
+}
+
+function calculateAnnualizedVolatility(candles: MarketCandle[]) {
+  const returns = candles
+    .slice(1)
+    .map((candle, index) => {
+      const previous = candles[index]?.close;
+      if (!previous || previous <= 0) return null;
+      return Math.log(candle.close / previous);
+    })
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  if (returns.length < 20) return null;
+  const mean = returns.reduce((sum, value) => sum + value, 0) / returns.length;
+  const variance =
+    returns.reduce((sum, value) => sum + (value - mean) ** 2, 0) / Math.max(returns.length - 1, 1);
+  return Math.sqrt(variance) * Math.sqrt(252) * 100;
+}
+
+function buildMarketSnapshot(
+  commodity: CommodityKey,
+  profile: CommodityProfile,
+  payload: MarketSnapshotApiResponse,
+): MarketSnapshot | null {
+  const candles = payload.candles?.filter((item) => Number.isFinite(item.close)) ?? [];
+  if (!payload.ok || candles.length < 2) return null;
+
+  const latestCandle = candles[candles.length - 1];
+  const currentYear = new Date(`${latestCandle.time}T00:00:00Z`).getUTCFullYear();
+  const yearStartCandle = candles.find((item) => new Date(`${item.time}T00:00:00Z`).getUTCFullYear() === currentYear) ?? candles[0];
+  const ytd = yearStartCandle.close > 0 ? ((latestCandle.close - yearStartCandle.close) / yearStartCandle.close) * 100 : 0;
+  const volatility = calculateAnnualizedVolatility(candles);
+
+  return {
+    benchmark: profile.benchmark,
+    latest: formatSnapshotPrice(commodity, latestCandle.close),
+    ytd: formatSignedPercent(ytd),
+    volatility: volatility === null ? "--" : `${volatility.toFixed(1)}%`,
+    symbol: payload.symbol ?? profile.futuresSymbols[0] ?? "N/A",
+    source:
+      payload.source === "cache" || payload.source === "cache-stale"
+        ? "Yahoo Finance Chart API (cached)"
+        : "Yahoo Finance Chart API",
+    updatedAt: payload.updatedAt ?? new Date().toISOString(),
+    stale: payload.stale,
+    warning: payload.warning,
+  };
+}
+
 function buildOecTradeSourceUrl(hs4Id: number, limit = 65000) {
   const params = new URLSearchParams({
     cube: "trade_i_baci_a_22",
@@ -281,6 +399,9 @@ export default function MapClient() {
   const [tradeFlowError, setTradeFlowError] = useState<string | null>(null);
   const [driverSignals, setDriverSignals] = useState<DriverSignal[]>([]);
   const [newsSnapshot, setNewsSnapshot] = useState<CommodityNewsSnapshot | null>(null);
+  const [marketSnapshot, setMarketSnapshot] = useState<MarketSnapshot | null>(null);
+  const [marketSnapshotLoading, setMarketSnapshotLoading] = useState(false);
+  const [marketSnapshotError, setMarketSnapshotError] = useState<string | null>(null);
   const [activeDriverId, setActiveDriverId] = useState("");
   const [driverLoading, setDriverLoading] = useState(false);
   const [driverError, setDriverError] = useState<string | null>(null);
@@ -448,6 +569,28 @@ export default function MapClient() {
   const activeTradeFlow = tradeFlows.find((item) => item.id === activeTradeFlowId) ?? tradeFlows[0] ?? null;
   const activeDriver = driverSignals.find((item) => item.id === activeDriverId) ?? driverSignals[0] ?? null;
   const topKeywordCount = newsSnapshot?.keywords[0]?.count ?? 1;
+  const snapshotCards = [
+    {
+      label: "Benchmark",
+      value: marketSnapshot ? `${marketSnapshot.benchmark} · ${marketSnapshot.symbol}` : currentProfile.benchmark,
+      note: "合約基準",
+    },
+    {
+      label: "Latest",
+      value: marketSnapshot?.latest ?? (marketSnapshotLoading ? "Loading..." : currentProfile.latestPrice),
+      note: "最新日收盤",
+    },
+    {
+      label: "YTD",
+      value: marketSnapshot?.ytd ?? (marketSnapshotLoading ? "Loading..." : currentProfile.ytdChange),
+      note: "年初至今",
+    },
+    {
+      label: "Volatility",
+      value: marketSnapshot?.volatility ?? (marketSnapshotLoading ? "Loading..." : currentProfile.volatility),
+      note: "1Y 年化",
+    },
+  ];
   const keyRiskDriver = useMemo(() => {
     return [...driverSignals]
       .filter((signal) => signal.direction !== "neutral")
@@ -732,6 +875,52 @@ export default function MapClient() {
     let aborted = false;
     const controller = new AbortController();
 
+    async function loadMarketSnapshot() {
+      setMarketSnapshotLoading(true);
+      setMarketSnapshotError(null);
+
+      if (currentProfile.futuresSymbols.length === 0) {
+        setMarketSnapshot(null);
+        setMarketSnapshotError("此商品目前沒有可公開抓取的即時市場 symbol。");
+        setMarketSnapshotLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/market/candles?commodity=${encodeURIComponent(themeKey)}&range=1y&interval=1d`, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        const payload = (await response.json()) as MarketSnapshotApiResponse;
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.error ?? "Market snapshot unavailable");
+        }
+        if (aborted) return;
+        const snapshot = buildMarketSnapshot(themeKey, currentProfile, payload);
+        if (!snapshot) {
+          throw new Error("Market snapshot empty");
+        }
+        setMarketSnapshot(snapshot);
+      } catch (error) {
+        if (aborted) return;
+        setMarketSnapshot(null);
+        setMarketSnapshotError(error instanceof Error ? error.message : "Market snapshot unavailable");
+      } finally {
+        if (!aborted) setMarketSnapshotLoading(false);
+      }
+    }
+
+    void loadMarketSnapshot();
+    return () => {
+      aborted = true;
+      controller.abort();
+    };
+  }, [currentProfile, themeKey]);
+
+  useEffect(() => {
+    let aborted = false;
+    const controller = new AbortController();
+
     async function loadDriverSignals() {
       setDriverLoading(true);
       setDriverError(null);
@@ -883,22 +1072,35 @@ export default function MapClient() {
 
         <section className="paper-card p-4 md:p-5">
           <div className="flex gap-3 overflow-x-auto pb-1 md:overflow-visible">
-            {[
-              ["Benchmark", currentProfile.benchmark],
-              ["Latest", currentProfile.latestPrice],
-              ["YTD", currentProfile.ytdChange],
-              ["Volatility", currentProfile.volatility],
-            ].map(([label, value]) => (
+            {snapshotCards.map(({ label, value, note }) => (
               <div
                 key={label}
                 className="min-h-[90px] min-w-[168px] shrink-0 rounded-xl border border-[var(--line)] bg-white/82 px-4 py-3 md:min-w-0 md:flex-1"
               >
                 <div className="flex h-full flex-col justify-between">
-                  <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-[var(--muted)] md:text-[11px]">{label}</p>
+                  <div>
+                    <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-[var(--muted)] md:text-[11px]">{label}</p>
+                    <p className="mt-1 text-[10px] text-[var(--muted)]">{note}</p>
+                  </div>
                   <p className="mt-2 text-lg font-semibold leading-tight text-[var(--brand-ink)] md:text-xl">{value}</p>
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--muted)]">
+            {marketSnapshot ? (
+              <>
+                <span>市場資料：{marketSnapshot.source}</span>
+                <span>Symbol：{marketSnapshot.symbol}</span>
+                <span>更新：{new Date(marketSnapshot.updatedAt).toLocaleString("zh-TW")}</span>
+                {marketSnapshot.stale ? <span>暫用快取</span> : null}
+              </>
+            ) : (
+              <span>
+                市場資料：{marketSnapshotError ? `暫無即時資料（${marketSnapshotError}）` : "讀取中"}
+              </span>
+            )}
           </div>
 
           <div
@@ -1085,23 +1287,21 @@ export default function MapClient() {
                 <p className="mt-2 text-sm leading-7 text-[var(--muted)]">{currentProfile.intro}</p>
 
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-lg border border-[var(--line)] bg-white/82 px-2.5 py-2">
-                    <p className="uppercase tracking-[0.11em] text-[var(--muted)]">Benchmark</p>
-                    <p className="mt-1 text-sm font-semibold text-[var(--brand-ink)]">{currentProfile.benchmark}</p>
-                  </div>
-                  <div className="rounded-lg border border-[var(--line)] bg-white/82 px-2.5 py-2">
-                    <p className="uppercase tracking-[0.11em] text-[var(--muted)]">Latest</p>
-                    <p className="mt-1 text-sm font-semibold text-[var(--brand-ink)]">{currentProfile.latestPrice}</p>
-                  </div>
-                  <div className="rounded-lg border border-[var(--line)] bg-white/82 px-2.5 py-2">
-                    <p className="uppercase tracking-[0.11em] text-[var(--muted)]">YTD</p>
-                    <p className="mt-1 text-sm font-semibold text-[var(--brand-ink)]">{currentProfile.ytdChange}</p>
-                  </div>
-                  <div className="rounded-lg border border-[var(--line)] bg-white/82 px-2.5 py-2">
-                    <p className="uppercase tracking-[0.11em] text-[var(--muted)]">Volatility</p>
-                    <p className="mt-1 text-sm font-semibold text-[var(--brand-ink)]">{currentProfile.volatility}</p>
-                  </div>
+                  {snapshotCards.map((item) => (
+                    <div key={`panel-${item.label}`} className="rounded-lg border border-[var(--line)] bg-white/82 px-2.5 py-2">
+                      <p className="uppercase tracking-[0.11em] text-[var(--muted)]">{item.label}</p>
+                      <p className="mt-1 text-sm font-semibold text-[var(--brand-ink)]">{item.value}</p>
+                      <p className="mt-0.5 text-[10px] text-[var(--muted)]">{item.note}</p>
+                    </div>
+                  ))}
                 </div>
+                <p className="mt-2 text-[10px] leading-5 text-[var(--muted)]">
+                  {marketSnapshot
+                    ? `市場資料：${marketSnapshot.source} · ${marketSnapshot.symbol} · ${new Date(
+                        marketSnapshot.updatedAt,
+                      ).toLocaleString("zh-TW")}`
+                    : `市場資料：${marketSnapshotError ?? "讀取中"}`}
+                </p>
 
                 <div className="mt-3 flex gap-2">
                   <button
@@ -2058,7 +2258,7 @@ export default function MapClient() {
               </a>
             </p>
             <p>
-              期貨 K-line：
+              市場價格 / K-line：
               <a
                 href={klineYahooSourceUrl}
                 target="_blank"
