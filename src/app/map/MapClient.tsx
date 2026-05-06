@@ -633,14 +633,85 @@ export default function MapClient() {
   const keyTradeRoute = tradeFlows[0] ?? null;
   const topProductionShare = productionRanking[0]?.share ?? 1;
   const hs4Id = HS4_BY_COMMODITY[themeKey];
-  const productionSourceUrl = "https://www.fao.org/faostat/en/#data/QCL";
+  const currentCommoditySection = commoditySections.find((section) => section.keys.includes(themeKey))?.id ?? "agri";
+  const productionSource =
+    currentCommoditySection === "metals"
+      ? {
+          label: "USGS Mineral Commodity Summaries",
+          href: "https://www.usgs.gov/centers/national-minerals-information-center/mineral-commodity-summaries",
+          cadence: "年度更新；MapHouse 依最新公開年報整理",
+        }
+      : currentCommoditySection === "energy"
+        ? {
+            label: "EIA International Energy Statistics",
+            href: "https://www.eia.gov/international/data/world",
+            cadence: "官方資料不定期更新；MapHouse profile 定期校正",
+          }
+        : {
+            label: "FAOSTAT Crops and livestock products",
+            href: "https://www.fao.org/faostat/en/#data/QCL",
+            cadence: "年度更新；MapHouse 依最新公開年資料整理",
+          };
   const tradeListSourceUrl = buildOecTradeSourceUrl(hs4Id, 65000);
   const tradeFlowSourceUrl = buildOecTradeSourceUrl(hs4Id, 65000);
   const yahooSymbol = currentProfile.futuresSymbols[0];
   const klineYahooSourceUrl = yahooSymbol
     ? `https://finance.yahoo.com/quote/${encodeURIComponent(yahooSymbol)}/history?p=${encodeURIComponent(yahooSymbol)}`
     : "https://finance.yahoo.com/markets/commodities/";
-  const klineTradingViewSourceUrl = "https://www.tradingview.com/markets/futures/world-commodities/";
+  const displayedFlowYear = tradeFlowYear ?? selectedFlowYear;
+  const sourceRows = [
+    {
+      data: "產量面量圖 / Top producer share",
+      source: productionSource.label,
+      href: productionSource.href,
+      detail: productionSource.cadence,
+    },
+    {
+      data: "進出口泡泡圖",
+      source: `OEC BACI API · HS4 ${hs4Id}`,
+      href: tradeListSourceUrl,
+      detail: `年度雙邊貿易資料；目前顯示 ${displayedFlowYear}；網站快取 6 小時`,
+    },
+    {
+      data: "Trade Flow Map 弧線",
+      source: `OEC BACI API · HS4 ${hs4Id}`,
+      href: tradeFlowSourceUrl,
+      detail: `Exporter → Importer trade value；目前顯示 ${displayedFlowYear}；網站快取 6 小時`,
+    },
+    {
+      data: "OEC 底層資料說明",
+      source: "CEPII BACI / UN Comtrade methodology",
+      href: "https://www.cepii.fr/DATA_DOWNLOAD/baci/doc/FAQ_BACI.html",
+      detail: "BACI 為年度貿易資料，通常不是即時訂單或即時船運資料",
+    },
+    {
+      data: "礦區 / 產區 / 油氣田點位",
+      source: currentCommoditySection === "energy" ? "EIA + public operator disclosures" : "USGS MCS + public operator disclosures",
+      href:
+        currentCommoditySection === "energy"
+          ? "https://www.eia.gov/international/analysis/special-topics/WorldOilTransitChokepoints"
+          : "https://www.usgs.gov/centers/national-minerals-information-center/mineral-commodity-summaries",
+      detail: "MapHouse 手動整理公開資訊；非即時自動更新",
+    },
+    {
+      data: "Pipeline / chokepoint layer",
+      source: "EIA World Oil Transit Chokepoints",
+      href: "https://www.eia.gov/international/analysis/special-topics/WorldOilTransitChokepoints",
+      detail: "MapHouse 手動整理路線與風險事件；非即時自動更新",
+    },
+    {
+      data: "市場價格 / K-line / Snapshot",
+      source: "Yahoo Finance / Stooq / TradingView",
+      href: marketSnapshot?.sourceUrl ?? klineYahooSourceUrl,
+      detail: "價格 API 約 3 分鐘快取；若 Yahoo 限流則切換 Stooq 備援",
+    },
+    {
+      data: "Price Drivers / News signals",
+      source: "FRED / GDELT / Google News RSS / Open-Meteo / OEC",
+      href: "https://fred.stlouisfed.org/",
+      detail: "依各 API 可用性更新；新聞與總經指標為輔助判讀，不等於交易建議",
+    },
+  ];
 
   const clampIntelPanelPosition = useCallback((x: number, y: number) => {
     const viewportRect = mapViewportRef.current?.getBoundingClientRect();
@@ -2238,104 +2309,45 @@ export default function MapClient() {
           </div>
         </section>
 
-        <footer className="paper-card px-5 py-4 md:px-6">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">Sources</p>
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] leading-5 text-[var(--muted)]">
-            <p>
-              產量清單：
-              <a
-                href={productionSourceUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="ml-1 underline decoration-[var(--line)] underline-offset-2 transition hover:text-[var(--brand-ink)]"
-              >
-                FAOSTAT (QCL)
-              </a>
+        <footer className="paper-card px-5 py-5 md:px-6">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">Data Traceability</p>
+              <h3 className="mt-1 font-[family-name:var(--font-display)] text-xl text-[var(--brand-ink)]">
+                每個圖層的資料來源
+              </h3>
+            </div>
+            <p className="max-w-xl text-[11px] leading-5 text-[var(--muted)]">
+              Flow map 使用年度貿易資料，不代表即時訂單；若 OEC 暫無可用資料，系統會改用 MapHouse profile
+              估算並在 API 回傳 warning。
             </p>
-            <p>
-              貿易清單：
-              <a
-                href={tradeListSourceUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="ml-1 underline decoration-[var(--line)] underline-offset-2 transition hover:text-[var(--brand-ink)]"
-              >
-                OEC BACI (HS4 {hs4Id})
-              </a>
-            </p>
-            <p>
-              Trade Flow：
-              <a
-                href={tradeFlowSourceUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="ml-1 underline decoration-[var(--line)] underline-offset-2 transition hover:text-[var(--brand-ink)]"
-              >
-                OEC Flow Data API
-              </a>
-            </p>
-            <p>
-              Pipeline：
-              <a
-                href="https://www.eia.gov/international/analysis/special-topics/WorldOilTransitChokepoints"
-                target="_blank"
-                rel="noreferrer"
-                className="ml-1 underline decoration-[var(--line)] underline-offset-2 transition hover:text-[var(--brand-ink)]"
-              >
-                EIA Global Pipeline/Chokepoint
-              </a>
-            </p>
-            <p>
-              產區點位：
-              <a
-                href="https://www.usgs.gov/centers/national-minerals-information-center/mineral-commodity-summaries"
-                target="_blank"
-                rel="noreferrer"
-                className="ml-1 underline decoration-[var(--line)] underline-offset-2 transition hover:text-[var(--brand-ink)]"
-              >
-                USGS MCS
-              </a>
-              <span className="mx-1.5 text-[var(--line)]">/</span>
-              <a
-                href="https://www.fao.org/faostat/"
-                target="_blank"
-                rel="noreferrer"
-                className="underline decoration-[var(--line)] underline-offset-2 transition hover:text-[var(--brand-ink)]"
-              >
-                FAOSTAT
-              </a>
-            </p>
-            <p>
-              市場價格 / K-line：
-              <a
-                href={klineYahooSourceUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="ml-1 underline decoration-[var(--line)] underline-offset-2 transition hover:text-[var(--brand-ink)]"
-              >
-                Yahoo Finance
-              </a>
-              <span className="mx-1.5 text-[var(--line)]">/</span>
-              <a
-                href={klineTradingViewSourceUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="underline decoration-[var(--line)] underline-offset-2 transition hover:text-[var(--brand-ink)]"
-              >
-                TradingView
-              </a>
-            </p>
-            <p>
-              Price Drivers：
-              <a
-                href="https://fred.stlouisfed.org/"
-                target="_blank"
-                rel="noreferrer"
-                className="ml-1 underline decoration-[var(--line)] underline-offset-2 transition hover:text-[var(--brand-ink)]"
-              >
-                FRED (St. Louis Fed)
-              </a>
-            </p>
+          </div>
+
+          <div className="mt-4 overflow-hidden rounded-2xl border border-[var(--line)] bg-white/60">
+            <div className="hidden grid-cols-[1.05fr_1fr_1.45fr] border-b border-[var(--line)] bg-[rgb(238_244_231_/_75%)] px-4 py-2 text-[10px] uppercase tracking-[0.16em] text-[var(--muted)] md:grid">
+              <span>Data Layer</span>
+              <span>Source</span>
+              <span>Update / Notes</span>
+            </div>
+            <div className="divide-y divide-[var(--line)]">
+              {sourceRows.map((row) => (
+                <div
+                  key={row.data}
+                  className="grid gap-1 px-4 py-3 text-[11px] leading-5 text-[var(--muted)] md:grid-cols-[1.05fr_1fr_1.45fr] md:items-center"
+                >
+                  <p className="font-semibold text-[var(--brand-ink)]">{row.data}</p>
+                  <a
+                    href={row.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline decoration-[var(--line)] underline-offset-2 transition hover:text-[var(--brand-ink)]"
+                  >
+                    {row.source}
+                  </a>
+                  <p>{row.detail}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </footer>
       </main>
