@@ -68,6 +68,7 @@ type MarketSnapshot = {
   volatility: string;
   symbol: string;
   source: string;
+  sourceUrl: string;
   updatedAt: string;
   stale?: boolean;
   warning?: string;
@@ -76,6 +77,7 @@ type MarketSnapshot = {
 type MarketSnapshotApiResponse = {
   ok?: boolean;
   source?: string;
+  upstreamSource?: string;
   stale?: boolean;
   warning?: string;
   symbol?: string;
@@ -169,6 +171,17 @@ const PRICE_UNIT_BY_COMMODITY: Record<CommodityKey, string> = {
   sugar: "lb",
   cotton: "lb",
   soybeanOil: "lb",
+};
+
+const PRICE_SCALE_BY_COMMODITY: Partial<Record<CommodityKey, number>> = {
+  soybean: 100,
+  wheat: 100,
+  corn: 100,
+  coffee: 100,
+  copper: 100,
+  sugar: 100,
+  cotton: 100,
+  soybeanOil: 100,
 };
 
 const SECTION_HEADER_STYLES: Record<
@@ -299,12 +312,31 @@ function parseDriverScoreMagnitude(scoreLabel: string) {
 
 function formatSnapshotPrice(commodity: CommodityKey, value: number) {
   const unit = PRICE_UNIT_BY_COMMODITY[commodity];
-  const decimals = Math.abs(value) >= 1000 ? 0 : Math.abs(value) >= 100 ? 2 : 3;
+  const scaledValue = value / (PRICE_SCALE_BY_COMMODITY[commodity] ?? 1);
+  const decimals = Math.abs(scaledValue) >= 1000 ? 0 : Math.abs(scaledValue) >= 100 ? 2 : 3;
   const formatted = new Intl.NumberFormat("en-US", {
     maximumFractionDigits: decimals,
-    minimumFractionDigits: Math.abs(value) >= 1000 ? 0 : 2,
-  }).format(value);
+    minimumFractionDigits: Math.abs(scaledValue) >= 1000 ? 0 : 2,
+  }).format(scaledValue);
   return `US$ ${formatted} / ${unit}`;
+}
+
+function getSnapshotSource(source: string | undefined, upstreamSource: string | undefined, symbol: string) {
+  const resolved = source === "cache" || source === "cache-stale" ? upstreamSource : source;
+  if (resolved === "stooq") {
+    return {
+      label: source === "cache" || source === "cache-stale" ? "Stooq historical quotes (cached)" : "Stooq historical quotes",
+      url: `https://stooq.com/q/d/?s=${encodeURIComponent(symbol.toLowerCase())}`,
+    };
+  }
+
+  return {
+    label:
+      source === "cache" || source === "cache-stale"
+        ? "Yahoo Finance Chart API (cached)"
+        : "Yahoo Finance Chart API",
+    url: `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}/history?p=${encodeURIComponent(symbol)}`,
+  };
 }
 
 function formatSignedPercent(value: number) {
@@ -341,17 +373,17 @@ function buildMarketSnapshot(
   const yearStartCandle = candles.find((item) => new Date(`${item.time}T00:00:00Z`).getUTCFullYear() === currentYear) ?? candles[0];
   const ytd = yearStartCandle.close > 0 ? ((latestCandle.close - yearStartCandle.close) / yearStartCandle.close) * 100 : 0;
   const volatility = calculateAnnualizedVolatility(candles);
+  const symbol = payload.symbol ?? profile.futuresSymbols[0] ?? "N/A";
+  const source = getSnapshotSource(payload.source, payload.upstreamSource, symbol);
 
   return {
     benchmark: profile.benchmark,
     latest: formatSnapshotPrice(commodity, latestCandle.close),
     ytd: formatSignedPercent(ytd),
     volatility: volatility === null ? "--" : `${volatility.toFixed(1)}%`,
-    symbol: payload.symbol ?? profile.futuresSymbols[0] ?? "N/A",
-    source:
-      payload.source === "cache" || payload.source === "cache-stale"
-        ? "Yahoo Finance Chart API (cached)"
-        : "Yahoo Finance Chart API",
+    symbol,
+    source: source.label,
+    sourceUrl: source.url,
     updatedAt: payload.updatedAt ?? new Date().toISOString(),
     stale: payload.stale,
     warning: payload.warning,
@@ -1091,7 +1123,17 @@ export default function MapClient() {
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--muted)]">
             {marketSnapshot ? (
               <>
-                <span>市場資料：{marketSnapshot.source}</span>
+                <span>
+                  市場資料：
+                  <a
+                    href={marketSnapshot.sourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline-offset-2 hover:underline"
+                  >
+                    {marketSnapshot.source}
+                  </a>
+                </span>
                 <span>Symbol：{marketSnapshot.symbol}</span>
                 <span>更新：{new Date(marketSnapshot.updatedAt).toLocaleString("zh-TW")}</span>
                 {marketSnapshot.stale ? <span>暫用快取</span> : null}
@@ -1296,11 +1338,17 @@ export default function MapClient() {
                   ))}
                 </div>
                 <p className="mt-2 text-[10px] leading-5 text-[var(--muted)]">
-                  {marketSnapshot
-                    ? `市場資料：${marketSnapshot.source} · ${marketSnapshot.symbol} · ${new Date(
-                        marketSnapshot.updatedAt,
-                      ).toLocaleString("zh-TW")}`
-                    : `市場資料：${marketSnapshotError ?? "讀取中"}`}
+                  {marketSnapshot ? (
+                    <>
+                      市場資料：
+                      <a href={marketSnapshot.sourceUrl} target="_blank" rel="noreferrer" className="underline-offset-2 hover:underline">
+                        {marketSnapshot.source}
+                      </a>
+                      {` · ${marketSnapshot.symbol} · ${new Date(marketSnapshot.updatedAt).toLocaleString("zh-TW")}`}
+                    </>
+                  ) : (
+                    `市場資料：${marketSnapshotError ?? "讀取中"}`
+                  )}
                 </p>
 
                 <div className="mt-3 flex gap-2">
