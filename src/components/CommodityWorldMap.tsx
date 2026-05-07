@@ -897,14 +897,14 @@ export default function CommodityWorldMap({
               if (!position) return null;
               const color = zone.kind === "taiwan_port" ? "#2f7b47" : "#cf6f3f";
               return (
-                <g key={zone.id} opacity={0.92}>
-                  <circle cx={position.x} cy={position.y} r={compact ? 4.8 : 6.2} fill="rgb(255 255 255 / 0.72)" stroke={color} strokeWidth={1.2} />
-                  <circle cx={position.x} cy={position.y} r={compact ? 1.6 : 2.1} fill={color} />
-                  {!compact ? (
+                <g key={zone.id} opacity={0.78}>
+                  <circle cx={position.x} cy={position.y} r={compact ? 3.8 : 5.2} fill="rgb(255 255 255 / 0.68)" stroke={color} strokeWidth={1} />
+                  <circle cx={position.x} cy={position.y} r={compact ? 1.3 : 1.8} fill={color} />
+                  {!compact && zone.kind === "chokepoint" ? (
                     <text
                       x={position.x + 8}
                       y={position.y - 6}
-                      fontSize={9}
+                      fontSize={8}
                       fontWeight={700}
                       fill={color}
                       style={{ paintOrder: "stroke", stroke: "rgba(255,255,255,0.82)", strokeWidth: 3 }}
@@ -924,13 +924,13 @@ export default function CommodityWorldMap({
                 point.vesselType === "crude_tanker" || point.vesselType === "product_tanker" || point.vesselType === "lng_tanker";
               const color =
                 point.vesselType === "lng_tanker"
-                  ? "#1f9dc2"
+                  ? "#007fa3"
                   : point.vesselType === "crude_tanker" || point.vesselType === "product_tanker"
-                    ? "#d87932"
+                    ? "#c45f18"
                     : point.vesselType === "bulk_carrier"
-                      ? "#7f9a3f"
-                      : "#526f9e";
-              const size = compact ? 5.5 : isActive ? 9 : point.relevance === "high" ? 7.5 : 6.2;
+                      ? "#0f5f6f"
+                      : "#263f7f";
+              const size = compact ? 7.5 : isActive ? 15 : point.relevance === "high" ? 12.5 : 10.5;
               return (
                 <g
                   key={point.id}
@@ -940,17 +940,27 @@ export default function CommodityWorldMap({
                   <circle
                     cx={position.x}
                     cy={position.y}
-                    r={size + (isActive ? 8 : 5)}
+                    r={size + (isActive ? 12 : 8)}
                     fill={color}
-                    opacity={isActive ? 0.26 : 0.16}
+                    opacity={isActive ? 0.32 : 0.24}
                     filter="url(#vessel-point-glow)"
+                  />
+                  <line
+                    x1={position.x}
+                    y1={position.y + size * 0.75}
+                    x2={position.x}
+                    y2={position.y + size * 1.9}
+                    stroke="rgba(255,255,255,0.86)"
+                    strokeWidth={isActive ? 2.6 : 1.8}
+                    strokeLinecap="round"
+                    transform={`rotate(${point.course} ${position.x} ${position.y})`}
                   />
                   <g transform={`translate(${position.x} ${position.y}) rotate(${point.course})`}>
                     <path
                       d={`M 0 ${-size} L ${size * 0.62} ${size * 0.74} L 0 ${size * 0.42} L ${-size * 0.62} ${size * 0.74} Z`}
                       fill={color}
-                      stroke="rgba(255,255,255,0.92)"
-                      strokeWidth={isActive ? 2 : 1.2}
+                      stroke="rgba(255,255,255,0.98)"
+                      strokeWidth={isActive ? 3 : 2}
                       opacity={isEnergy ? 0.98 : 0.9}
                     />
                   </g>
@@ -977,6 +987,17 @@ export default function CommodityWorldMap({
                         {point.name}
                       </text>
                     </>
+                  ) : !compact ? (
+                    <text
+                      x={position.x + 10}
+                      y={position.y + 4}
+                      fontSize={9}
+                      fontWeight={800}
+                      fill={color}
+                      style={{ paintOrder: "stroke", stroke: "rgba(255,255,255,0.82)", strokeWidth: 3 }}
+                    >
+                      {point.name}
+                    </text>
                   ) : null}
                 </g>
               );

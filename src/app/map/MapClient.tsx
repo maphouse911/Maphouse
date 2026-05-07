@@ -8,6 +8,7 @@ import CommodityWorldMap, { type CommodityTradeFlow } from "@/components/Commodi
 import { trackEvent } from "@/lib/analytics";
 import { commoditySiteDefaultSources, commoditySitePoints } from "@/lib/commoditySites";
 import {
+  commodityLogisticsProfiles,
   commodityVesselTypes,
   getCommodityVessels,
   vesselLayerSourceNote,
@@ -1425,6 +1426,7 @@ export default function MapClient() {
   const compareProfile = commodityProfiles[compareKey];
   const currentTaiwanMapping = TAIWAN_INDUSTRY_MAPPING[themeKey];
   const currentCompanyExposures = TAIWAN_COMPANY_EXPOSURES[themeKey];
+  const currentLogisticsProfile = commodityLogisticsProfiles[themeKey];
   const selectedInsight =
     currentTheme.insights[panelLayer === "trade" && currentTheme.insights.length > 1 ? 1 : 0] ?? currentTheme.insights[0];
   const overlapRegions = sharedRegions(themeKey, compareKey);
@@ -2995,15 +2997,6 @@ export default function MapClient() {
                       風險
                     </button>
                   ) : null}
-                  <button
-                    type="button"
-                    onClick={toggleVesselLayer}
-                    className={`rounded-full px-2.5 py-1 text-[11px] tracking-[0.1em] transition ${
-                      showVesselLayer ? "bg-[#2f7b8f] text-white" : "bg-white text-[var(--muted)] hover:bg-[#eef3e6]"
-                    }`}
-                  >
-                    船舶
-                  </button>
                   {currentPipelineRoutes.length ? (
                     <div className="flex items-center gap-1 rounded-full border border-[var(--line)] bg-white px-1 py-0.5">
                       <button
@@ -3297,6 +3290,94 @@ export default function MapClient() {
                     </div>
                   </details>
                 ))}
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-[rgb(47_123_143_/_28%)] bg-[linear-gradient(135deg,rgb(232_244_244_/_82%),rgb(255_255_255_/_70%))] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">Physical Flow & Shipping Risk</p>
+                  <h4 className="mt-1 text-lg font-semibold text-[var(--brand-ink)]">{currentLogisticsProfile.title}</h4>
+                  <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+                    這裡不是逐船追蹤，而是把航線、港口、海峽與台灣到港風險轉成商品供需判讀。
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleVesselLayer}
+                  className={`rounded-full px-3 py-1.5 text-[11px] font-medium tracking-[0.1em] transition ${
+                    showVesselLayer ? "bg-[#2f7b8f] text-white" : "border border-[rgb(47_123_143_/_34%)] bg-white/82 text-[#245d6d] hover:bg-[rgb(47_123_143_/_8%)]"
+                  }`}
+                >
+                  {showVesselLayer ? "AIS watch on" : "開啟 AIS 輔助層"}
+                </button>
+              </div>
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                <div className="rounded-2xl border border-[var(--line)] bg-white/74 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted)]">主要實物流向</p>
+                  <ul className="mt-2 space-y-1.5 text-xs leading-5 text-[var(--muted)]">
+                    {currentLogisticsProfile.primaryRoutes.map((route) => (
+                      <li key={route} className="flex gap-2">
+                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#2f7b8f]" />
+                        <span>{route}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="rounded-2xl border border-[var(--line)] bg-white/74 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted)]">關鍵節點</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {currentLogisticsProfile.keyNodes.map((node) => (
+                      <span
+                        key={node}
+                        className="rounded-full border border-[rgb(47_123_143_/_28%)] bg-white px-2.5 py-1 text-[11px] text-[#245d6d]"
+                      >
+                        {node}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-[var(--line)] bg-white/74 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted)]">台灣傳導</p>
+                  <ul className="mt-2 space-y-1.5 text-xs leading-5 text-[var(--muted)]">
+                    {currentLogisticsProfile.taiwanTransmission.map((item) => (
+                      <li key={item} className="flex gap-2">
+                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--olive)]" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="rounded-2xl border border-[var(--line)] bg-white/74 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted)]">航運風險訊號</p>
+                  <ul className="mt-2 space-y-1.5 text-xs leading-5 text-[var(--muted)]">
+                    {currentLogisticsProfile.riskSignals.map((item) => (
+                      <li key={item} className="flex gap-2">
+                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#cf6f3f]" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                <div className="rounded-2xl border border-[rgb(47_123_143_/_22%)] bg-white/76 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[#245d6d]">AIS 可以怎麼用</p>
+                  <p className="mt-2 text-xs leading-5 text-[var(--muted)]">{currentLogisticsProfile.aisUseCase}</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {currentVesselTypes.map((type) => (
+                      <span key={type} className="rounded-full border border-[var(--line)] bg-white px-2 py-0.5 text-[10px] text-[var(--muted)]">
+                        {VESSEL_TYPE_LABELS[type]}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-[rgb(207_111_63_/_24%)] bg-white/76 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[#8a4b0e]">貨物辨識限制</p>
+                  <p className="mt-2 text-xs leading-5 text-[var(--muted)]">{currentLogisticsProfile.cargoConfidence}</p>
+                </div>
               </div>
             </div>
           </article>
