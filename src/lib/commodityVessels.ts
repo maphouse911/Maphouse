@@ -44,6 +44,22 @@ export type CommodityLogisticsProfile = {
   riskSignals: string[];
   cargoConfidence: string;
   aisUseCase: string;
+  routeRiskScore: number;
+  routeRiskLabel: "High" | "Medium" | "Low";
+  freightSensitivity: string;
+  cargoTraceability: "High" | "Medium" | "Low";
+  dataUpgradePath: string[];
+  playbook: Array<{
+    trigger: string;
+    implication: string;
+    action: string;
+  }>;
+};
+
+export type CargoSignal = {
+  confidence: "High" | "Medium" | "Low";
+  label: string;
+  rationale: string;
 };
 
 export const vesselLayerSourceNote =
@@ -104,6 +120,16 @@ const grainLogistics: CommodityLogisticsProfile = {
   riskSignals: ["巴拿馬運河水位/通行限制", "黑海出口與戰爭風險", "南美港口排隊與收成季塞港", "颱風造成台灣港口作業延誤"],
   cargoConfidence: "AIS 可看到 bulk carrier 船型、目的港與 ETA，但通常無法直接確認船上是黃豆、小麥或玉米；需搭配出口港、目的港、季節與報關/港口資料推估。",
   aisUseCase: "用 AIS 觀察 bulk carrier 是否往台中/高雄等港口靠近，以及主要糧食航線是否出現延誤或繞道。",
+  routeRiskScore: 74,
+  routeRiskLabel: "High",
+  freightSensitivity: "高：穀物單位價值低、體積大，海運與到港延誤會明顯影響到岸成本。",
+  cargoTraceability: "Medium",
+  dataUpgradePath: ["AIS positions", "port call events", "bill of lading / customs data", "grain export inspection data"],
+  playbook: [
+    { trigger: "巴拿馬運河或南美港口延誤", implication: "亞洲到港時間拉長，飼料廠補庫風險上升", action: "追蹤台中港 bulk carrier ETA 與 CBOT + 運費同步變化" },
+    { trigger: "黑海出口受阻", implication: "小麥替代來源轉向澳洲/北美，基差可能擴大", action: "把小麥供應風險同步映射到麵粉與烘焙鏈" },
+    { trigger: "台灣港口受颱風影響", implication: "短期卸貨與庫存週轉壓力上升", action: "提高飼料、畜牧、食品加工的短期成本 watch" },
+  ],
 };
 
 const softLogistics: CommodityLogisticsProfile = {
@@ -114,6 +140,16 @@ const softLogistics: CommodityLogisticsProfile = {
   riskSignals: ["紅海/蘇伊士繞道", "貨櫃運價上升", "東南亞轉運港壅塞", "產地天氣造成出口節奏不穩"],
   cargoConfidence: "AIS 對貨櫃船只能提供船舶與航線資訊，無法知道特定貨櫃內裝的是咖啡、可可或棉花；商品判斷需要提單或海關資料。",
   aisUseCase: "用 AIS 追蹤貨櫃航線壅塞與到港節奏，而不是判斷單艘船的確切貨物。",
+  routeRiskScore: 58,
+  routeRiskLabel: "Medium",
+  freightSensitivity: "中：軟性商品多走貨櫃或雜貨，物流延誤重要，但價格仍更受產地天氣與庫存影響。",
+  cargoTraceability: "Low",
+  dataUpgradePath: ["container line schedule", "port congestion feed", "customs HS code data", "supplier shipment records"],
+  playbook: [
+    { trigger: "紅海/蘇伊士繞道", implication: "歐亞貨櫃航線時間拉長，咖啡與可可到岸成本可能上升", action: "追蹤貨櫃運價與食品飲料毛利壓力" },
+    { trigger: "東南亞轉運港壅塞", implication: "台灣進口交期不穩，餐飲與通路補貨風險上升", action: "把港口壅塞列入餐飲/零售採購 watch" },
+    { trigger: "產地天氣與物流同時惡化", implication: "供給衝擊可能由價格擴散到實體缺貨", action: "提高 soft commodities 的風險權重" },
+  ],
 };
 
 const oilLogistics: CommodityLogisticsProfile = {
@@ -124,6 +160,16 @@ const oilLogistics: CommodityLogisticsProfile = {
   riskSignals: ["中東衝突與荷姆茲風險", "油輪繞道造成航程拉長", "制裁改變俄油/中東油流向", "亞洲煉油裂解價差變化"],
   cargoConfidence: "AIS 可辨識 crude/product tanker、目的港、速度與吃水，能推估載貨狀態；但要知道是哪一種原油或買賣雙方，通常需要 Kpler/Vortexa 等 cargo intelligence。",
   aisUseCase: "用 AIS 觀察油輪是否集中在荷姆茲、麻六甲與台灣周邊港口，作為供應鏈壅塞與風險輔助訊號。",
+  routeRiskScore: 86,
+  routeRiskLabel: "High",
+  freightSensitivity: "高：油輪航程、保險費、繞道與裂解價差會直接影響到岸油品與石化料源成本。",
+  cargoTraceability: "Medium",
+  dataUpgradePath: ["AIS positions", "vessel draught", "fixture / tanker freight", "Kpler or Vortexa cargo flows"],
+  playbook: [
+    { trigger: "荷姆茲或紅海風險升高", implication: "油輪保險費與繞道風險上升，東亞到岸成本敏感", action: "同步觀察 Brent、航運燃油、塑化與航空燃油成本" },
+    { trigger: "油輪速度下降或等待卸貨增加", implication: "可能出現港口壅塞或煉廠採購節奏變化", action: "把 tanker watch 接到台塑化、中油、航空與航運成本卡" },
+    { trigger: "制裁改變俄油/中東油流向", implication: "全球油輪噸海里需求與折價結構改變", action: "追蹤 Brent-WTI spread 與亞洲裂解價差" },
+  ],
 };
 
 const gasLogistics: CommodityLogisticsProfile = {
@@ -134,6 +180,16 @@ const gasLogistics: CommodityLogisticsProfile = {
   riskSignals: ["JKM 價格波動", "LNG 船等待卸貨", "卡達/澳洲供給事件", "颱風造成接收站作業延誤"],
   cargoConfidence: "LNG tanker 船型辨識度高，AIS 對 LNG 航線較有用；但合約價格、買方與貨源仍需要商業資料庫或公司揭露。",
   aisUseCase: "用 AIS 觀察 LNG tanker 是否靠近永安/台中接收站，以及荷姆茲、麻六甲是否出現 LNG 航線壅塞。",
+  routeRiskScore: 82,
+  routeRiskLabel: "High",
+  freightSensitivity: "高：LNG 專用船、接收站排程與現貨價格會一起影響電力燃料安全。",
+  cargoTraceability: "High",
+  dataUpgradePath: ["AIS positions", "LNG terminal arrivals", "JKM / DES price", "cargo intelligence for origin and buyer"],
+  playbook: [
+    { trigger: "LNG 船接收站等待時間上升", implication: "卸貨排程與燃料庫存壓力增加", action: "提高台電、用電大戶與電價政策 watch" },
+    { trigger: "卡達/澳洲供給事件", implication: "亞洲 LNG 現貨價格敏感度上升", action: "同步觀察 JKM、台灣接收站 ETA 與夏季尖峰用電" },
+    { trigger: "荷姆茲或麻六甲航線壅塞", implication: "LNG 到港不確定性上升", action: "將航線風險連到天然氣 price drivers" },
+  ],
 };
 
 const metalLogistics: CommodityLogisticsProfile = {
@@ -144,6 +200,16 @@ const metalLogistics: CommodityLogisticsProfile = {
   riskSignals: ["礦山罷工與港口封鎖", "印尼/中國出口政策", "紅海或蘇伊士繞道影響歐亞航線", "東亞港口壅塞"],
   cargoConfidence: "AIS 可看到 bulk/general cargo 船型與目的港，但無法直接知道是銅精礦、鋁土礦、鎳礦或其他散貨；需搭配礦山港口、報關資料與貿易資料推估。",
   aisUseCase: "用 AIS 觀察散貨船與雜貨船在礦產出口港、東亞冶煉港與台灣工業港的到港節奏。",
+  routeRiskScore: 66,
+  routeRiskLabel: "Medium",
+  freightSensitivity: "中：礦砂與精礦運輸重要，但價格更常由礦山供給、冶煉瓶頸與庫存主導。",
+  cargoTraceability: "Medium",
+  dataUpgradePath: ["AIS positions", "mine/export terminal mapping", "customs HS code data", "smelter import records"],
+  playbook: [
+    { trigger: "礦山港口封鎖或罷工", implication: "精礦供給收縮，TC/RC 或冶煉端壓力上升", action: "把風險連到銅、鋁、鎳等金屬供給卡" },
+    { trigger: "印尼/中國出口政策變化", implication: "鎳、鋁、稀散金屬實物流向可能重排", action: "同步更新產區點位與貿易 flow map" },
+    { trigger: "東亞冶煉港壅塞", implication: "下游材料交期不穩，台灣電子與機械鏈成本承壓", action: "提高台灣企業曝險卡的物流風險標籤" },
+  ],
 };
 
 const preciousLogistics: CommodityLogisticsProfile = {
@@ -154,6 +220,16 @@ const preciousLogistics: CommodityLogisticsProfile = {
   riskSignals: ["美元與實質利率", "ETF 資金流", "央行買盤", "太陽能需求與銀漿成本"],
   cargoConfidence: "貴金屬常透過高安全物流與金融庫存移轉，AIS 對單一商品判斷價值有限；更適合觀察金融流、ETF 與利率。",
   aisUseCase: "不建議把黃金白銀做成船舶追蹤主題；AIS 只適合輔助白銀工業材料或貨櫃物流，不應作為主要訊號。",
+  routeRiskScore: 28,
+  routeRiskLabel: "Low",
+  freightSensitivity: "低：黃金白銀價格主要由利率、美元、避險與投資需求驅動，海運不是核心訊號。",
+  cargoTraceability: "Low",
+  dataUpgradePath: ["ETF flow", "central bank buying", "vault / exchange inventory", "solar silver demand indicators"],
+  playbook: [
+    { trigger: "ETF 或央行買盤放大", implication: "金融需求比實體物流更能解釋價格", action: "優先更新 price drivers，而非 AIS layer" },
+    { trigger: "太陽能銀漿需求升溫", implication: "白銀工業需求可能支撐價格", action: "把白銀與太陽能企業曝險連動" },
+    { trigger: "物流事件影響高安全運輸", implication: "可能影響局部交割或庫存移轉", action: "僅列為低權重輔助訊號" },
+  ],
 };
 
 export const commodityLogisticsProfiles: Record<CommodityKey, CommodityLogisticsProfile> = {
@@ -532,4 +608,60 @@ export function getCommodityVessels(commodity: CommodityKey) {
     if (BULK_COMMODITIES.includes(commodity)) return allowedTypes.includes(point.vesselType);
     return allowedTypes.includes(point.vesselType);
   });
+}
+
+export function inferCargoSignal(commodity: CommodityKey, vessel: CommodityVesselPoint): CargoSignal {
+  if ((commodity === "oil" || commodity === "brent") && vessel.vesselType === "crude_tanker") {
+    return {
+      confidence: "Medium",
+      label: "可能為原油航線",
+      rationale: "船型為 crude tanker，且路線位於油輪主航道；但 AIS 無法辨識油種或買賣雙方。",
+    };
+  }
+
+  if ((commodity === "oil" || commodity === "brent" || commodity === "soybeanOil") && vessel.vesselType === "product_tanker") {
+    return {
+      confidence: "Medium",
+      label: "可能為成品油/液體散貨",
+      rationale: "船型與液體商品相符；需靠港口、吃水與 cargo intelligence 才能確認實際貨物。",
+    };
+  }
+
+  if (commodity === "naturalGas" && vessel.vesselType === "lng_tanker") {
+    return {
+      confidence: "High",
+      label: "LNG 船型高度吻合",
+      rationale: "LNG tanker 船型辨識度高，可作為天然氣實物流向的高可信輔助訊號。",
+    };
+  }
+
+  if (["soybean", "wheat", "corn"].includes(commodity) && vessel.vesselType === "bulk_carrier") {
+    return {
+      confidence: "Medium",
+      label: "可能為穀物/飼料散貨",
+      rationale: "bulk carrier 與穀物運輸相符；但需搭配出口港、季節與提單資料確認是黃豆、小麥或玉米。",
+    };
+  }
+
+  if (["aluminum", "copper", "nickel", "zinc", "lead"].includes(commodity) && vessel.vesselType === "bulk_carrier") {
+    return {
+      confidence: "Medium",
+      label: "可能為礦砂/精礦航線",
+      rationale: "bulk carrier 可運礦砂與精礦；需搭配礦區出口港與 HS code 資料確認品項。",
+    };
+  }
+
+  if (["coffee", "cocoa", "cotton", "tin", "cobalt", "lithium", "gallium", "germanium", "gold", "silver"].includes(commodity)) {
+    return {
+      confidence: "Low",
+      label: "只能作為物流輔助訊號",
+      rationale: "此類商品多走貨櫃、雜貨或高安全物流，AIS 無法直接辨識單一商品，需要提單、海關或供應商資料。",
+    };
+  }
+
+  return {
+    confidence: "Low",
+    label: "需外部 cargo data 確認",
+    rationale: "船型與商品可能相關，但 AIS 本身不提供可驗證的貨物明細。",
+  };
 }

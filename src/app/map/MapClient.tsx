@@ -11,6 +11,7 @@ import {
   commodityLogisticsProfiles,
   commodityVesselTypes,
   getCommodityVessels,
+  inferCargoSignal,
   vesselLayerSourceNote,
   vesselWatchZones,
   type CommodityVesselType,
@@ -1499,7 +1500,20 @@ export default function MapClient() {
   const activeSitePoint = visibleSitePoints.find((item) => item.id === activeSiteId) ?? visibleSitePoints[0] ?? null;
   const activeSiteSourceUrl = activeSitePoint?.sourceUrl ?? commoditySiteDefaultSources[themeKey];
   const activeVesselPoint = currentVesselPoints.find((item) => item.id === activeVesselId) ?? currentVesselPoints[0] ?? null;
-  const vesselsNearTaiwan = currentVesselPoints.filter((item) => item.destination.toLowerCase().includes("taiwan") || item.destination.includes("Kaohsiung") || item.destination.includes("Taichung") || item.destination.includes("Mailiao") || item.destination.includes("Yongan")).length;
+  const vesselsNearTaiwan = currentVesselPoints.filter(
+    (item) =>
+      item.destination.toLowerCase().includes("taiwan") ||
+      item.destination.includes("Kaohsiung") ||
+      item.destination.includes("Taichung") ||
+      item.destination.includes("Mailiao") ||
+      item.destination.includes("Yongan")
+  ).length;
+  const currentVesselSignals = currentVesselPoints.map((vessel) => ({
+    vessel,
+    signal: inferCargoSignal(themeKey, vessel),
+  }));
+  const highConfidenceVessels = currentVesselSignals.filter((item) => item.signal.confidence === "High").length;
+  const mediumConfidenceVessels = currentVesselSignals.filter((item) => item.signal.confidence === "Medium").length;
   const productionRanking = useMemo(
     () => [...currentProfile.productionShares].sort((a, b) => b.share - a.share),
     [currentProfile.productionShares]
@@ -3314,6 +3328,44 @@ export default function MapClient() {
               </div>
 
               <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                <div className="rounded-2xl border border-[rgb(47_123_143_/_24%)] bg-white/82 p-3 lg:col-span-2">
+                  <div className="grid gap-3 sm:grid-cols-4">
+                    <div className="rounded-xl border border-[var(--line)] bg-[rgb(247_251_242_/_82%)] p-3">
+                      <p className="text-[10px] uppercase tracking-[0.14em] text-[var(--muted)]">Route Risk</p>
+                      <p
+                        className={`mt-1 text-2xl font-semibold ${
+                          currentLogisticsProfile.routeRiskLabel === "High"
+                            ? "text-[#9d4436]"
+                            : currentLogisticsProfile.routeRiskLabel === "Medium"
+                              ? "text-[#8a6a2f]"
+                              : "text-[#2f7b47]"
+                        }`}
+                      >
+                        {currentLogisticsProfile.routeRiskScore}
+                      </p>
+                      <p className="text-[11px] text-[var(--muted)]">{currentLogisticsProfile.routeRiskLabel} sensitivity</p>
+                    </div>
+                    <div className="rounded-xl border border-[var(--line)] bg-[rgb(247_251_242_/_82%)] p-3">
+                      <p className="text-[10px] uppercase tracking-[0.14em] text-[var(--muted)]">Cargo Traceability</p>
+                      <p className="mt-1 text-2xl font-semibold text-[#245d6d]">{currentLogisticsProfile.cargoTraceability}</p>
+                      <p className="text-[11px] text-[var(--muted)]">AIS + external data</p>
+                    </div>
+                    <div className="rounded-xl border border-[var(--line)] bg-[rgb(247_251_242_/_82%)] p-3">
+                      <p className="text-[10px] uppercase tracking-[0.14em] text-[var(--muted)]">Taiwan Watch</p>
+                      <p className="mt-1 text-2xl font-semibold text-[var(--brand-ink)]">{vesselsNearTaiwan}</p>
+                      <p className="text-[11px] text-[var(--muted)]">AIS-ready vessels</p>
+                    </div>
+                    <div className="rounded-xl border border-[var(--line)] bg-[rgb(247_251_242_/_82%)] p-3">
+                      <p className="text-[10px] uppercase tracking-[0.14em] text-[var(--muted)]">Cargo Signal</p>
+                      <p className="mt-1 text-2xl font-semibold text-[var(--brand-ink)]">{highConfidenceVessels + mediumConfidenceVessels}</p>
+                      <p className="text-[11px] text-[var(--muted)]">high / medium matches</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 rounded-xl border border-[rgb(47_123_143_/_18%)] bg-white/70 px-3 py-2 text-xs leading-5 text-[var(--muted)]">
+                    Freight sensitivity：{currentLogisticsProfile.freightSensitivity}
+                  </p>
+                </div>
+
                 <div className="rounded-2xl border border-[var(--line)] bg-white/74 p-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted)]">主要實物流向</p>
                   <ul className="mt-2 space-y-1.5 text-xs leading-5 text-[var(--muted)]">
@@ -3377,6 +3429,92 @@ export default function MapClient() {
                 <div className="rounded-2xl border border-[rgb(207_111_63_/_24%)] bg-white/76 p-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[#8a4b0e]">貨物辨識限制</p>
                   <p className="mt-2 text-xs leading-5 text-[var(--muted)]">{currentLogisticsProfile.cargoConfidence}</p>
+                </div>
+              </div>
+
+              <div className="mt-3 rounded-2xl border border-[rgb(10_21_38_/_10%)] bg-white/78 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted)]">Trade Flow Intelligence Playbook</p>
+                  <span className="rounded-full border border-[var(--line)] bg-white px-2.5 py-1 text-[10px] text-[var(--muted)]">
+                    decision layer
+                  </span>
+                </div>
+                <div className="mt-2 grid gap-2">
+                  {currentLogisticsProfile.playbook.map((item) => (
+                    <div key={item.trigger} className="grid gap-2 rounded-xl border border-[var(--line)] bg-[rgb(247_251_242_/_72%)] p-3 text-xs leading-5 text-[var(--muted)] md:grid-cols-3">
+                      <div>
+                        <p className="font-semibold text-[var(--brand-ink)]">Trigger</p>
+                        <p className="mt-1">{item.trigger}</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-[var(--brand-ink)]">Implication</p>
+                        <p className="mt-1">{item.implication}</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-[var(--brand-ink)]">Desk Action</p>
+                        <p className="mt-1">{item.action}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-3 rounded-2xl border border-[rgb(47_123_143_/_22%)] bg-white/78 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted)]">AIS Watchlist & Cargo Inference</p>
+                  <span className="rounded-full border border-[rgb(47_123_143_/_24%)] bg-[rgb(47_123_143_/_8%)] px-2.5 py-1 text-[10px] text-[#245d6d]">
+                    sample now / live-ready
+                  </span>
+                </div>
+                <div className="mt-2 space-y-2">
+                  {currentVesselSignals.slice(0, 5).map(({ vessel, signal }) => (
+                    <button
+                      key={`ais-watch-${vessel.id}`}
+                      type="button"
+                      onClick={() => {
+                        setShowVesselLayer(true);
+                        setActiveVesselId(vessel.id);
+                      }}
+                      className={`w-full rounded-xl border p-3 text-left transition ${
+                        activeVesselPoint?.id === vessel.id && showVesselLayer
+                          ? "border-[#2f7b8f] bg-[rgb(47_123_143_/_10%)]"
+                          : "border-[var(--line)] bg-[rgb(247_251_242_/_70%)] hover:bg-white"
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-semibold text-[var(--brand-ink)]">{vessel.name}</p>
+                          <p className="mt-0.5 text-[11px] uppercase tracking-[0.12em] text-[var(--muted)]">
+                            {VESSEL_TYPE_LABELS[vessel.vesselType]} · {vessel.destination} · {vessel.speedKnots.toFixed(1)} kn
+                          </p>
+                        </div>
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${
+                            signal.confidence === "High"
+                              ? "bg-[#2f7b47] text-white"
+                              : signal.confidence === "Medium"
+                                ? "bg-[#2f7b8f] text-white"
+                                : "bg-[rgb(117_129_144_/_14%)] text-[#5d6b7a]"
+                          }`}
+                        >
+                          {signal.confidence}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs font-medium text-[#245d6d]">{signal.label}</p>
+                      <p className="mt-1 text-xs leading-5 text-[var(--muted)]">{signal.rationale}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-3 rounded-2xl border border-[rgb(207_111_63_/_20%)] bg-[rgb(255_250_239_/_70%)] p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[#8a4b0e]">Data Upgrade Path</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {currentLogisticsProfile.dataUpgradePath.map((item, index) => (
+                    <span key={item} className="rounded-full border border-[rgb(207_111_63_/_20%)] bg-white px-2.5 py-1 text-[11px] text-[var(--muted)]">
+                      {index + 1}. {item}
+                    </span>
+                  ))}
                 </div>
               </div>
             </div>
