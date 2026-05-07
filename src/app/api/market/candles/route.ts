@@ -7,6 +7,7 @@ type YahooChartQuote = {
   high?: Array<number | null>;
   low?: Array<number | null>;
   close?: Array<number | null>;
+  volume?: Array<number | null>;
 };
 
 type YahooChartResult = {
@@ -29,6 +30,7 @@ type Candle = {
   high: number;
   low: number;
   close: number;
+  volume?: number;
 };
 
 type CandleCacheEntry = {
@@ -110,6 +112,7 @@ function toCandles(result: YahooChartResult | undefined): Candle[] {
     const high = quote.high?.[i];
     const low = quote.low?.[i];
     const close = quote.close?.[i];
+    const volume = quote.volume?.[i];
     if (
       typeof open !== "number" ||
       typeof high !== "number" ||
@@ -129,6 +132,7 @@ function toCandles(result: YahooChartResult | undefined): Candle[] {
       high,
       low,
       close,
+      volume: typeof volume === "number" && Number.isFinite(volume) && volume > 0 ? volume : undefined,
     });
   }
   return candles;
@@ -277,7 +281,7 @@ function parseNumber(value: string) {
 
 function parseStooqHistoryRows(html: string): Candle[] {
   const rowPattern =
-    /<tr><td align=center id=t03>\d+<\/td><td nowrap>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td>/g;
+    /<tr><td align=center id=t03>\d+<\/td><td nowrap>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td>.*?<td>([^<]+)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td>/g;
   const candles: Candle[] = [];
   for (const match of html.matchAll(rowPattern)) {
     const time = parseStooqDate(match[1]);
@@ -285,8 +289,9 @@ function parseStooqHistoryRows(html: string): Candle[] {
     const high = parseNumber(match[3]);
     const low = parseNumber(match[4]);
     const close = parseNumber(match[5]);
+    const volume = parseNumber(match[8]);
     if (!time || open === null || high === null || low === null || close === null) continue;
-    candles.push({ time, open, high, low, close });
+    candles.push({ time, open, high, low, close, volume: volume && volume > 0 ? volume : undefined });
   }
   return candles;
 }
@@ -300,10 +305,11 @@ function parseStooqQuoteCsv(csv: string): Candle | null {
   const high = parseNumber(highRaw);
   const low = parseNumber(lowRaw);
   const close = parseNumber(closeRaw);
+  const volume = parseNumber(values[7] ?? "");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || open === null || high === null || low === null || close === null) {
     return null;
   }
-  return { time: date, open, high, low, close };
+  return { time: date, open, high, low, close, volume: volume && volume > 0 ? volume : undefined };
 }
 
 async function fetchStooqQuoteCandle(symbol: string) {

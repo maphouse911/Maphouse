@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
+import CommodityMarketHeatmap from "@/components/CommodityMarketHeatmap";
 import HomeCommodityPreview from "@/components/HomeCommodityPreview";
 import { loadMapHousePosts } from "@/lib/instagram";
 import InstagramOauthBridge from "./InstagramOauthBridge";
@@ -62,6 +63,8 @@ export default async function Home() {
             先看互動地圖掌握全局，再讀最新分析建立觀點。MapHouse 把地理、財金與產業研究整合成可探索的內容平台。
           </p>
         </section>
+
+        <CommodityMarketHeatmap />
 
         <section className="grid gap-5 md:grid-cols-[1.05fr,0.95fr]">
           <article className="paper-card overflow-hidden p-7 transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_44px_rgb(10_21_38_/_14%)] md:p-8">
