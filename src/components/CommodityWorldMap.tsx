@@ -80,6 +80,32 @@ export type CommodityPipelineRiskEvent = {
   routeIds: string[];
 };
 
+export type CommodityVesselPoint = {
+  id: string;
+  name: string;
+  mmsi: string;
+  imo?: string;
+  vesselType: "crude_tanker" | "product_tanker" | "lng_tanker" | "bulk_carrier" | "container_ship" | "general_cargo";
+  lat: number;
+  lon: number;
+  speedKnots: number;
+  course: number;
+  destination: string;
+  eta: string;
+  routeHint: string;
+  commodityHint: string;
+  relevance: "high" | "medium" | "watch";
+};
+
+export type CommodityVesselWatchZone = {
+  id: string;
+  name: string;
+  kind: "taiwan_port" | "chokepoint";
+  lat: number;
+  lon: number;
+  note: string;
+};
+
 export type CommodityMapMode = "hotspot" | "production" | "trade";
 
 type Props = {
@@ -111,6 +137,11 @@ type Props = {
   pipelineRiskEvents?: CommodityPipelineRiskEvent[];
   activePipelineRiskEventId?: string;
   onSelectPipelineRiskEvent?: (id: string) => void;
+  showVesselLayer?: boolean;
+  vesselPoints?: CommodityVesselPoint[];
+  vesselWatchZones?: CommodityVesselWatchZone[];
+  activeVesselId?: string;
+  onSelectVessel?: (id: string) => void;
   compact?: boolean;
   className?: string;
 };
@@ -286,6 +317,11 @@ export default function CommodityWorldMap({
   pipelineRiskEvents = [],
   activePipelineRiskEventId,
   onSelectPipelineRiskEvent,
+  showVesselLayer = false,
+  vesselPoints = [],
+  vesselWatchZones = [],
+  activeVesselId,
+  onSelectVessel,
   compact = false,
   className = "",
 }: Props) {
@@ -296,6 +332,7 @@ export default function CommodityWorldMap({
   const hotspotVisible = !isLayerMode && mode === "hotspot";
   const siteVisible = Boolean(showSiteLayer);
   const pipelineVisible = Boolean(showPipelineLayer);
+  const vesselVisible = Boolean(showVesselLayer);
 
   const productionShareMap = useMemo(() => {
     return new Map(productionData.map((item) => [normalizeCountryCode(item.countryCode), item.share]));
@@ -474,6 +511,30 @@ export default function CommodityWorldMap({
     return map;
   }, [mapShapes, pipelineRiskEvents]);
 
+  const vesselPositions = useMemo(() => {
+    const map = new Map<string, { x: number; y: number }>();
+    vesselPoints.forEach((point) => {
+      const projected = mapShapes.project(point.lon, point.lat);
+      if (!projected) return;
+      const [x, y] = projected;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      map.set(point.id, { x, y });
+    });
+    return map;
+  }, [mapShapes, vesselPoints]);
+
+  const watchZonePositions = useMemo(() => {
+    const map = new Map<string, { x: number; y: number }>();
+    vesselWatchZones.forEach((zone) => {
+      const projected = mapShapes.project(zone.lon, zone.lat);
+      if (!projected) return;
+      const [x, y] = projected;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      map.set(zone.id, { x, y });
+    });
+    return map;
+  }, [mapShapes, vesselWatchZones]);
+
   function productionFill(countryCode: string) {
     if (!productionVisible) return "#dbe5cf";
     const value = productionShareMap.get(countryCode);
@@ -495,6 +556,9 @@ export default function CommodityWorldMap({
           </filter>
           <filter id="risk-event-glow" x="-240%" y="-240%" width="480%" height="480%">
             <feGaussianBlur stdDeviation="2.2" result="risk-blur" />
+          </filter>
+          <filter id="vessel-point-glow" x="-260%" y="-260%" width="520%" height="520%">
+            <feGaussianBlur stdDeviation="2.8" result="vessel-blur" />
           </filter>
           {tradeVisible
             ? tradeFlows.map((flow) => {
@@ -815,6 +879,100 @@ export default function CommodityWorldMap({
                         fontWeight={700}
                         fill={accentColor}
                         style={{ paintOrder: "stroke", stroke: "rgba(255,255,255,0.8)", strokeWidth: 3 }}
+                      >
+                        {point.name}
+                      </text>
+                    </>
+                  ) : null}
+                </g>
+              );
+            })}
+          </g>
+        ) : null}
+
+        {vesselVisible ? (
+          <g>
+            {vesselWatchZones.map((zone) => {
+              const position = watchZonePositions.get(zone.id);
+              if (!position) return null;
+              const color = zone.kind === "taiwan_port" ? "#2f7b47" : "#cf6f3f";
+              return (
+                <g key={zone.id} opacity={0.92}>
+                  <circle cx={position.x} cy={position.y} r={compact ? 4.8 : 6.2} fill="rgb(255 255 255 / 0.72)" stroke={color} strokeWidth={1.2} />
+                  <circle cx={position.x} cy={position.y} r={compact ? 1.6 : 2.1} fill={color} />
+                  {!compact ? (
+                    <text
+                      x={position.x + 8}
+                      y={position.y - 6}
+                      fontSize={9}
+                      fontWeight={700}
+                      fill={color}
+                      style={{ paintOrder: "stroke", stroke: "rgba(255,255,255,0.82)", strokeWidth: 3 }}
+                    >
+                      {zone.name}
+                    </text>
+                  ) : null}
+                </g>
+              );
+            })}
+
+            {vesselPoints.map((point) => {
+              const position = vesselPositions.get(point.id);
+              if (!position) return null;
+              const isActive = point.id === activeVesselId;
+              const isEnergy =
+                point.vesselType === "crude_tanker" || point.vesselType === "product_tanker" || point.vesselType === "lng_tanker";
+              const color =
+                point.vesselType === "lng_tanker"
+                  ? "#1f9dc2"
+                  : point.vesselType === "crude_tanker" || point.vesselType === "product_tanker"
+                    ? "#d87932"
+                    : point.vesselType === "bulk_carrier"
+                      ? "#7f9a3f"
+                      : "#526f9e";
+              const size = compact ? 5.5 : isActive ? 9 : point.relevance === "high" ? 7.5 : 6.2;
+              return (
+                <g
+                  key={point.id}
+                  className={onSelectVessel ? "cursor-pointer" : undefined}
+                  onClick={onSelectVessel ? () => onSelectVessel(point.id) : undefined}
+                >
+                  <circle
+                    cx={position.x}
+                    cy={position.y}
+                    r={size + (isActive ? 8 : 5)}
+                    fill={color}
+                    opacity={isActive ? 0.26 : 0.16}
+                    filter="url(#vessel-point-glow)"
+                  />
+                  <g transform={`translate(${position.x} ${position.y}) rotate(${point.course})`}>
+                    <path
+                      d={`M 0 ${-size} L ${size * 0.62} ${size * 0.74} L 0 ${size * 0.42} L ${-size * 0.62} ${size * 0.74} Z`}
+                      fill={color}
+                      stroke="rgba(255,255,255,0.92)"
+                      strokeWidth={isActive ? 2 : 1.2}
+                      opacity={isEnergy ? 0.98 : 0.9}
+                    />
+                  </g>
+                  {isActive ? (
+                    <>
+                      <circle
+                        cx={position.x}
+                        cy={position.y}
+                        r={size + 11}
+                        fill="none"
+                        stroke={color}
+                        strokeWidth={1.2}
+                        strokeDasharray="4 3"
+                        opacity={0.78}
+                      />
+                      <text
+                        x={position.x + 10}
+                        y={position.y - 10}
+                        fontSize={compact ? 8 : 10}
+                        fontWeight={800}
+                        fill={color}
+                        style={{ paintOrder: "stroke", stroke: "rgba(255,255,255,0.86)", strokeWidth: 3 }}
                       >
                         {point.name}
                       </text>

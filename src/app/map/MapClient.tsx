@@ -8,6 +8,13 @@ import CommodityWorldMap, { type CommodityTradeFlow } from "@/components/Commodi
 import { trackEvent } from "@/lib/analytics";
 import { commoditySiteDefaultSources, commoditySitePoints } from "@/lib/commoditySites";
 import {
+  commodityVesselTypes,
+  getCommodityVessels,
+  vesselLayerSourceNote,
+  vesselWatchZones,
+  type CommodityVesselType,
+} from "@/lib/commodityVessels";
+import {
   getPipelineStatusAtYear,
   getPipelineYearExtent,
   pipelineRiskEventsByCommodity,
@@ -103,6 +110,15 @@ type MarketSnapshotApiResponse = {
   updatedAt?: string;
   candles?: MarketCandle[];
   error?: string;
+};
+
+const VESSEL_TYPE_LABELS: Record<CommodityVesselType, string> = {
+  crude_tanker: "Crude Tanker",
+  product_tanker: "Product Tanker",
+  lng_tanker: "LNG Tanker",
+  bulk_carrier: "Bulk Carrier",
+  container_ship: "Container Ship",
+  general_cargo: "General Cargo",
 };
 
 type NewsTone = "positive" | "negative" | "neutral";
@@ -1342,6 +1358,7 @@ export default function MapClient() {
   const [showTradeLayer, setShowTradeLayer] = useState(true);
   const [showSiteLayer, setShowSiteLayer] = useState(true);
   const [showPipelineLayer, setShowPipelineLayer] = useState(true);
+  const [showVesselLayer, setShowVesselLayer] = useState(false);
   const [selectedCountryCode, setSelectedCountryCode] = useState(
     normalizeCountryCode(commodityProfiles.soybean.productionShares[0]?.countryCode)
   );
@@ -1381,6 +1398,7 @@ export default function MapClient() {
   });
   const [activeSiteId, setActiveSiteId] = useState(commoditySitePoints.soybean[0]?.id ?? "");
   const [activePipelineId, setActivePipelineId] = useState(pipelineRoutesByCommodity.soybean[0]?.id ?? "");
+  const [activeVesselId, setActiveVesselId] = useState(getCommodityVessels("soybean")[0]?.id ?? "");
   const [showPipelineRiskLayer, setShowPipelineRiskLayer] = useState(true);
   const [pipelineYear, setPipelineYear] = useState(new Date().getFullYear());
   const [pipelineRiskFilters, setPipelineRiskFilters] = useState<PipelineRiskFilterState>({
@@ -1411,6 +1429,8 @@ export default function MapClient() {
     currentTheme.insights[panelLayer === "trade" && currentTheme.insights.length > 1 ? 1 : 0] ?? currentTheme.insights[0];
   const overlapRegions = sharedRegions(themeKey, compareKey);
   const currentSitePoints = useMemo(() => commoditySitePoints[themeKey] ?? [], [themeKey]);
+  const currentVesselPoints = useMemo(() => getCommodityVessels(themeKey), [themeKey]);
+  const currentVesselTypes = commodityVesselTypes[themeKey];
   const currentPipelineRoutes = useMemo(() => pipelineRoutesByCommodity[themeKey] ?? [], [themeKey]);
   const currentPipelineRiskEvents = useMemo(() => pipelineRiskEventsByCommodity[themeKey] ?? [], [themeKey]);
   const pipelineYearExtent = useMemo(
@@ -1476,6 +1496,8 @@ export default function MapClient() {
   );
   const activeSitePoint = visibleSitePoints.find((item) => item.id === activeSiteId) ?? visibleSitePoints[0] ?? null;
   const activeSiteSourceUrl = activeSitePoint?.sourceUrl ?? commoditySiteDefaultSources[themeKey];
+  const activeVesselPoint = currentVesselPoints.find((item) => item.id === activeVesselId) ?? currentVesselPoints[0] ?? null;
+  const vesselsNearTaiwan = currentVesselPoints.filter((item) => item.destination.toLowerCase().includes("taiwan") || item.destination.includes("Kaohsiung") || item.destination.includes("Taichung") || item.destination.includes("Mailiao") || item.destination.includes("Yongan")).length;
   const productionRanking = useMemo(
     () => [...currentProfile.productionShares].sort((a, b) => b.share - a.share),
     [currentProfile.productionShares]
@@ -1633,6 +1655,12 @@ export default function MapClient() {
       detail: "MapHouse 手動整理路線與風險事件；非即時自動更新",
     },
     {
+      data: "Vessel layer / AIS-ready sample",
+      source: "MapHouse AIS-ready schema; designed for Spire / MarineTraffic / VesselFinder / AISHub",
+      href: "https://www.aishub.net/api",
+      detail: vesselLayerSourceNote,
+    },
+    {
       data: "市場價格 / K-line / Snapshot",
       source: "Yahoo Finance / Stooq / TradingView",
       href: marketSnapshot?.sourceUrl ?? klineYahooSourceUrl,
@@ -1694,6 +1722,7 @@ export default function MapClient() {
         const endYear = event.endYear ?? event.year;
         return clampedPipelineYear >= event.year && clampedPipelineYear <= endYear;
       }) ?? null;
+    const nextVessel = getCommodityVessels(nextKey)[0] ?? null;
     setThemeKey(nextKey);
     setCompareKey(nextCompareKey);
     setActiveProductionCode(nextDefaultCode);
@@ -1703,6 +1732,7 @@ export default function MapClient() {
     setActiveSiteId(nextFirstVisibleSite?.id ?? "");
     setActivePipelineId(nextPipelineRoute?.id ?? "");
     setActivePipelineRiskEventId(nextRiskEvent?.id ?? "");
+    setActiveVesselId(nextVessel?.id ?? "");
     void trackEvent("map_theme_change", { commodity: nextKey, compareMode, secondary: nextCompareKey });
   }
 
@@ -1840,6 +1870,15 @@ export default function MapClient() {
     const next = !showPipelineRiskLayer;
     setShowPipelineRiskLayer(next);
     void trackEvent("map_layer_visibility_change", { commodity: themeKey, layer: "pipeline_risk", visible: next });
+  }
+
+  function toggleVesselLayer() {
+    const next = !showVesselLayer;
+    setShowVesselLayer(next);
+    if (next && !activeVesselId && currentVesselPoints[0]) {
+      setActiveVesselId(currentVesselPoints[0].id);
+    }
+    void trackEvent("map_layer_visibility_change", { commodity: themeKey, layer: "vessels", visible: next });
   }
 
   function toggleSiteKind(kind: SiteKindFilter) {
@@ -2208,6 +2247,11 @@ export default function MapClient() {
                     if (route) setActivePipelineId(route.id);
                   }
                 }}
+                showVesselLayer={showVesselLayer}
+                vesselPoints={currentVesselPoints}
+                vesselWatchZones={vesselWatchZones}
+                activeVesselId={activeVesselPoint?.id}
+                onSelectVessel={setActiveVesselId}
               />
 
               {intelPanelVisible ? (
@@ -2622,6 +2666,32 @@ export default function MapClient() {
                       <span className="font-semibold">{showPipelineRiskLayer ? "ON" : "OFF"}</span>
                     </button>
                   ) : null}
+                  <button
+                    type="button"
+                    onClick={toggleVesselLayer}
+                    className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-xs transition ${
+                      showVesselLayer
+                        ? "border-[#2f7b8f] bg-[rgb(47_123_143_/_12%)] text-[#245d6d]"
+                        : "border-[var(--line)] bg-white/80 text-[var(--muted)]"
+                    }`}
+                  >
+                    <span>Vessels + Ports</span>
+                    <span className="font-semibold">{showVesselLayer ? "ON" : "OFF"}</span>
+                  </button>
+                </div>
+
+                <div className="mt-3 rounded-xl border border-[var(--line)] bg-white/82 px-2.5 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.12em] text-[var(--muted)]">Vessel Filter</p>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {currentVesselTypes.map((type) => (
+                      <span
+                        key={`vessel-type-${type}`}
+                        className="rounded-full border border-[rgb(47_123_143_/_28%)] bg-[rgb(47_123_143_/_8%)] px-2 py-0.5 text-[10px] text-[#245d6d]"
+                      >
+                        {VESSEL_TYPE_LABELS[type]}
+                      </span>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="mt-3 rounded-xl border border-[var(--line)] bg-white/82 px-2.5 py-2">
@@ -2719,6 +2789,8 @@ export default function MapClient() {
                   <p>Risk events：{visiblePipelineRiskEvents.length}</p>
                   <p>顯示點位：{visibleSitePoints.length}</p>
                   <p>總點位：{currentSitePoints.length}</p>
+                  <p>Vessels：{currentVesselPoints.length}</p>
+                  <p>往台灣/近台灣：{vesselsNearTaiwan}</p>
                 </div>
 
                 {activeSitePoint ? (
@@ -2795,6 +2867,20 @@ export default function MapClient() {
                   </div>
                 ) : null}
 
+                {activeVesselPoint && showVesselLayer ? (
+                  <div className="mt-3 rounded-xl border border-[rgb(47_123_143_/_35%)] bg-[rgb(47_123_143_/_8%)] px-3 py-2 text-[11px] text-[var(--muted)]">
+                    <p className="font-semibold tracking-[0.12em] text-[#245d6d]">Selected Vessel</p>
+                    <p className="mt-1 text-[var(--brand-ink)]">{activeVesselPoint.name}</p>
+                    <p>
+                      {VESSEL_TYPE_LABELS[activeVesselPoint.vesselType]} · {activeVesselPoint.speedKnots.toFixed(1)} kn
+                    </p>
+                    <p>Destination：{activeVesselPoint.destination}</p>
+                    <p>ETA：{activeVesselPoint.eta}</p>
+                    <p>{activeVesselPoint.routeHint}</p>
+                    <p className="mt-1 rounded-lg bg-white/70 px-2 py-1 text-[10px]">{activeVesselPoint.commodityHint}</p>
+                  </div>
+                ) : null}
+
                 <div className="mt-3 grid grid-cols-1 gap-1.5 text-[11px] text-[var(--muted)]">
                   <div className="flex items-center gap-2">
                     <span className="inline-block h-2.5 w-2.5 rounded-full bg-[rgb(203_89_83_/_85%)]" />
@@ -2839,6 +2925,10 @@ export default function MapClient() {
                   <div className="flex items-center gap-2">
                     <span className="inline-block h-2.5 w-2.5 rounded-full bg-[rgb(191_153_73_/_88%)]" />
                     產區點位
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block h-0 w-0 border-x-[5px] border-b-[9px] border-x-transparent border-b-[#2f7b8f]" />
+                    AIS 船舶點位
                   </div>
                 </div>
               </aside>
@@ -2905,6 +2995,15 @@ export default function MapClient() {
                       風險
                     </button>
                   ) : null}
+                  <button
+                    type="button"
+                    onClick={toggleVesselLayer}
+                    className={`rounded-full px-2.5 py-1 text-[11px] tracking-[0.1em] transition ${
+                      showVesselLayer ? "bg-[#2f7b8f] text-white" : "bg-white text-[var(--muted)] hover:bg-[#eef3e6]"
+                    }`}
+                  >
+                    船舶
+                  </button>
                   {currentPipelineRoutes.length ? (
                     <div className="flex items-center gap-1 rounded-full border border-[var(--line)] bg-white px-1 py-0.5">
                       <button
