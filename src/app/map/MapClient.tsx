@@ -40,6 +40,13 @@ type DriverDirection = "positive" | "negative" | "neutral";
 type DriverHorizon = "short" | "long";
 type PipelineRiskFilterState = Record<PipelineRiskType, boolean>;
 
+type TaiwanIndustryMapping = {
+  affectedIndustries: string[];
+  transmission: string[];
+  financeDeskFocus: string[];
+  earlySignals: string[];
+};
+
 type DriverSignal = {
   id: string;
   label: string;
@@ -245,6 +252,147 @@ const COUNTRY_INTEL_BY_COMMODITY: Partial<Record<CommodityKey, Record<string, Co
     peru: { companies: ["Southern Copper", "MMG", "Antamina"], positioning: "全球增量供應關鍵" },
     china: { companies: ["Jiangxi Copper", "Tongling Nonferrous", "Minmetals"], positioning: "精煉與消費中心" },
     "united states": { companies: ["Freeport-McMoRan", "Rio Tinto Kennecott", "Asarco"], positioning: "需求與投資週期指標市場" },
+  },
+};
+
+const TAIWAN_INDUSTRY_MAPPING: Record<CommodityKey, TaiwanIndustryMapping> = {
+  soybean: {
+    affectedIndustries: ["飼料", "畜牧", "食品加工", "油脂", "餐飲"],
+    transmission: ["黃豆進口成本", "豆粕與飼料價格", "肉品與蛋品成本", "食用油與餐飲毛利"],
+    financeDeskFocus: ["食品廠採購週期", "畜牧業毛利壓力", "庫存天數", "民生通膨與報價轉嫁"],
+    earlySignals: ["巴西/美國收成", "中國採購節奏", "CBOT 豆粕與豆油價差", "海運與匯率"],
+  },
+  wheat: {
+    affectedIndustries: ["麵粉", "烘焙", "食品加工", "餐飲", "零售通路"],
+    transmission: ["小麥進口成本", "麵粉報價", "麵包/麵食成本", "食品通路售價"],
+    financeDeskFocus: ["食品通路漲價壓力", "採購合約", "庫存天數", "消費需求彈性"],
+    earlySignals: ["黑海出口", "澳洲/北美天氣", "出口國政策", "USD/TWD"],
+  },
+  corn: {
+    affectedIndustries: ["飼料", "畜牧", "食品加工", "澱粉糖", "餐飲"],
+    transmission: ["玉米進口成本", "飼料配方成本", "肉品供應鏈", "加工食品原料"],
+    financeDeskFocus: ["飼料廠採購", "畜牧客戶現金流", "替代原料比例", "報價調整能力"],
+    earlySignals: ["美國單產", "巴西二期作", "乙醇需求", "運費與匯率"],
+  },
+  coffee: {
+    affectedIndustries: ["咖啡連鎖", "食品飲料", "零售通路", "餐飲"],
+    transmission: ["咖啡豆進口成本", "烘焙與包材成本", "門市售價", "品牌毛利"],
+    financeDeskFocus: ["連鎖餐飲毛利", "庫存採購時點", "品牌漲價空間", "消費需求彈性"],
+    earlySignals: ["巴西霜害/乾旱", "越南 Robusta 供給", "ICE 咖啡價差", "航運成本"],
+  },
+  oil: {
+    affectedIndustries: ["塑化", "航運", "航空", "陸運", "能源密集製造"],
+    transmission: ["石化原料", "燃油成本", "運輸成本", "通膨預期", "庫存評價"],
+    financeDeskFocus: ["客戶採購成本", "燃料避險需求", "毛利壓力", "運價與報價調整"],
+    earlySignals: ["OPEC+ 產量", "庫存週報", "中東風險", "美元與裂解價差"],
+  },
+  brent: {
+    affectedIndustries: ["塑化", "航運", "航空", "能源貿易", "運輸"],
+    transmission: ["全球油價基準", "燃油與運費", "煉油價差", "進口能源帳單"],
+    financeDeskFocus: ["燃料避險", "客戶營運成本", "匯率曝險", "長約/現貨採購差異"],
+    earlySignals: ["北海/中東供給", "海運 chokepoint", "Brent-WTI spread", "地緣政治新聞"],
+  },
+  naturalGas: {
+    affectedIndustries: ["電力", "半導體", "鋼鐵", "水泥", "造紙", "能源密集製造"],
+    transmission: ["LNG 進口成本", "發電成本", "電價政策", "工業用電成本", "供電穩定性"],
+    financeDeskFocus: ["電價調整風險", "台電政策", "用電大戶成本壓力", "長約與現貨曝險"],
+    earlySignals: ["JKM/LNG 價格", "油氣長約", "台電燃料成本", "夏季尖峰用電"],
+  },
+  aluminum: {
+    affectedIndustries: ["機械", "汽車零件", "包材", "航太", "自行車", "電子外殼"],
+    transmission: ["鋁錠價格", "加工費", "輕量化材料需求", "包材與零組件成本"],
+    financeDeskFocus: ["加工廠毛利", "長短料採購", "客戶轉嫁能力", "替代材料效應"],
+    earlySignals: ["中國冶煉產能", "電力成本", "LME 庫存", "汽車/包材需求"],
+  },
+  copper: {
+    affectedIndustries: ["電線電纜", "電子零組件", "電力設備", "AI 電力基建", "營建"],
+    transmission: ["銅價與線纜成本", "電氣化投資", "資料中心用電設備", "營建材料成本"],
+    financeDeskFocus: ["補庫需求", "報價轉嫁能力", "庫存評價", "美元採購成本"],
+    earlySignals: ["中國需求", "礦山干擾", "LME/COMEX 庫存", "AI 電網投資"],
+  },
+  gold: {
+    affectedIndustries: ["金融投資", "珠寶", "資產配置", "保險/投信", "財富管理"],
+    transmission: ["避險需求", "美元走勢", "實質利率", "央行買盤", "ETF 資金流"],
+    financeDeskFocus: ["客戶避險需求", "資產配置建議", "ETF/基金需求", "美元與利率敏感度"],
+    earlySignals: ["美國實質利率", "美元指數", "VIX/地緣風險", "央行購金"],
+  },
+  silver: {
+    affectedIndustries: ["電子", "太陽能", "投資商品", "精密材料"],
+    transmission: ["工業需求", "太陽能銀漿", "貴金屬投資需求", "庫存變化"],
+    financeDeskFocus: ["電子材料成本", "太陽能需求", "金銀比", "貴金屬避險需求"],
+    earlySignals: ["PV 裝機需求", "金銀比", "美元與利率", "工業景氣"],
+  },
+  nickel: {
+    affectedIndustries: ["不鏽鋼", "電池材料", "特殊鋼", "電動車供應鏈"],
+    transmission: ["鎳鐵/精煉鎳成本", "不鏽鋼報價", "電池前驅物成本", "庫存評價"],
+    financeDeskFocus: ["不鏽鋼客戶毛利", "電池材料採購", "印尼政策", "報價轉嫁"],
+    earlySignals: ["印尼 NPI", "LME 庫存", "不鏽鋼需求", "EV 電池化學體系"],
+  },
+  zinc: {
+    affectedIndustries: ["鍍鋅鋼材", "建材", "汽車零件", "五金"],
+    transmission: ["鋅錠價格", "鍍鋅加工成本", "建材報價", "營建需求"],
+    financeDeskFocus: ["鋼材加工毛利", "營建景氣", "庫存與採購", "報價轉嫁"],
+    earlySignals: ["LME 庫存", "冶煉費", "中國建築需求", "歐洲能源成本"],
+  },
+  lead: {
+    affectedIndustries: ["鉛酸電池", "汽機車維修", "儲能", "回收金屬"],
+    transmission: ["鉛價", "電池成本", "替換市場需求", "回收料供給"],
+    financeDeskFocus: ["電池廠毛利", "回收料價差", "車市售後需求", "庫存評價"],
+    earlySignals: ["汽車維修需求", "回收供給", "LME 庫存", "電池出口"],
+  },
+  tin: {
+    affectedIndustries: ["電子焊料", "PCB", "半導體封裝", "化工材料"],
+    transmission: ["錫價", "焊料成本", "電子組裝成本", "庫存調整"],
+    financeDeskFocus: ["電子代工成本", "封裝材料採購", "庫存週期", "報價轉嫁"],
+    earlySignals: ["緬甸/印尼供給", "半導體景氣", "LME 庫存", "電子出口訂單"],
+  },
+  lithium: {
+    affectedIndustries: ["電池材料", "儲能", "電動車", "正極材料"],
+    transmission: ["碳酸鋰/氫氧化鋰", "正極材料成本", "電池 cell 報價", "EV/儲能需求"],
+    financeDeskFocus: ["電池材料客戶庫存", "長約重議價", "毛利與跌價損失", "需求復甦節奏"],
+    earlySignals: ["中國電池價格", "EV 銷量", "鹽湖/硬岩供給", "庫存去化"],
+  },
+  cobalt: {
+    affectedIndustries: ["電池材料", "特殊合金", "電子材料", "航太"],
+    transmission: ["鈷中間品", "前驅物成本", "高溫合金材料", "供應鏈集中風險"],
+    financeDeskFocus: ["材料廠採購", "DRC 供應風險", "ESG/合規", "庫存評價"],
+    earlySignals: ["DRC 出口", "中國冶煉", "LFP 替代", "電池需求"],
+  },
+  gallium: {
+    affectedIndustries: ["GaN 功率元件", "通訊", "化合物半導體", "軍工/航太"],
+    transmission: ["高純鎵供給", "GaAs/GaN 晶圓", "功率元件成本", "出口管制風險"],
+    financeDeskFocus: ["半導體材料採購", "供應安全庫存", "替代供應商", "政策風險"],
+    earlySignals: ["中國出口管制", "GaN 需求", "庫存水位", "晶圓廠擴產"],
+  },
+  germanium: {
+    affectedIndustries: ["光纖", "紅外光學", "太陽能", "航太防務"],
+    transmission: ["高純鍺材料", "光纖/紅外元件", "防務需求", "出口管制風險"],
+    financeDeskFocus: ["材料安全庫存", "長約採購", "國防/通訊需求", "替代材料評估"],
+    earlySignals: ["中國出口政策", "光纖需求", "紅外設備訂單", "庫存水位"],
+  },
+  cocoa: {
+    affectedIndustries: ["巧克力", "食品加工", "烘焙", "零售"],
+    transmission: ["可可豆成本", "研磨加工", "品牌售價", "食品毛利"],
+    financeDeskFocus: ["食品品牌毛利", "漲價接受度", "庫存採購", "節慶需求"],
+    earlySignals: ["西非天氣", "病蟲害", "ICE 可可", "消費需求"],
+  },
+  sugar: {
+    affectedIndustries: ["食品飲料", "烘焙", "餐飲", "加工食品"],
+    transmission: ["糖價", "甜味劑成本", "飲料與食品配方", "零售價格"],
+    financeDeskFocus: ["食品飲料毛利", "替代甜味劑", "採購合約", "通膨壓力"],
+    earlySignals: ["巴西甘蔗", "印度出口政策", "乙醇需求", "天氣風險"],
+  },
+  cotton: {
+    affectedIndustries: ["紡織", "成衣", "零售", "機能布料"],
+    transmission: ["棉價", "紗線成本", "布料報價", "成衣零售庫存"],
+    financeDeskFocus: ["紡織客戶毛利", "品牌訂單", "庫存週期", "匯率與運費"],
+    earlySignals: ["美國/印度天氣", "中國紡織需求", "服飾庫存", "ICE 棉花"],
+  },
+  soybeanOil: {
+    affectedIndustries: ["食品油脂", "餐飲", "生質燃料", "食品加工"],
+    transmission: ["豆油價格", "食用油成本", "餐飲毛利", "生質燃料摻配需求"],
+    financeDeskFocus: ["油脂採購", "餐飲成本", "豆粕豆油價差", "庫存週期"],
+    earlySignals: ["黃豆壓榨利潤", "能源價格", "生質燃料政策", "東南亞棕櫚油"],
   },
 };
 
@@ -474,6 +622,7 @@ export default function MapClient() {
   const currentTheme = useMemo(() => commodityThemes.find((item) => item.key === themeKey) ?? commodityThemes[0], [themeKey]);
   const currentProfile = commodityProfiles[themeKey];
   const compareProfile = commodityProfiles[compareKey];
+  const currentTaiwanMapping = TAIWAN_INDUSTRY_MAPPING[themeKey];
   const selectedInsight =
     currentTheme.insights[panelLayer === "trade" && currentTheme.insights.length > 1 ? 1 : 0] ?? currentTheme.insights[0];
   const overlapRegions = sharedRegions(themeKey, compareKey);
@@ -2086,14 +2235,95 @@ export default function MapClient() {
         <section className="grid gap-5 md:grid-cols-2">
           <article className="paper-card p-5 md:p-6">
             <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Supply Chain Flow</p>
+            <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h3 className="font-[family-name:var(--font-display)] text-3xl text-[var(--brand-ink)]">
+                  {currentProfile.zhName} 產業鏈與台灣傳導
+                </h3>
+                <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
+                  從全球供應鏈往下追到台灣產業、成本路徑與法金客戶關注點。
+                </p>
+              </div>
+              <span className="rounded-full border border-[var(--line)] bg-white/70 px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-[var(--muted)]">
+                Taiwan lens
+              </span>
+            </div>
             <ol className="mt-3 space-y-2">
               {currentProfile.supplyChain.map((step, index) => (
-                <li key={step} className="rounded-xl border border-[var(--line)] bg-white/65 px-4 py-3 text-sm text-[var(--muted)]">
-                  <span className="mr-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--foreground)]">Step {index + 1}</span>
-                  {step}
+                <li
+                  key={step}
+                  className="group relative overflow-hidden rounded-2xl border border-[var(--line)] bg-white/68 px-4 py-3 text-sm text-[var(--muted)]"
+                >
+                  <span className="absolute inset-y-0 left-0 w-1 bg-[linear-gradient(180deg,var(--olive),var(--wheat))] opacity-70" />
+                  <span className="mr-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--foreground)]">
+                    Step {index + 1}
+                  </span>
+                  <span>{step}</span>
                 </li>
               ))}
             </ol>
+
+            <div className="mt-4 rounded-2xl border border-[rgb(126_149_110_/_42%)] bg-[linear-gradient(135deg,rgb(238_244_231_/_82%),rgb(255_255_255_/_66%))] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">Taiwan Industry Mapping</p>
+                  <h4 className="mt-1 text-lg font-semibold text-[var(--brand-ink)]">商品價格如何傳導到台灣產業</h4>
+                </div>
+                <span className="rounded-full bg-[rgb(10_21_38_/_8%)] px-3 py-1 text-[10px] uppercase tracking-[0.12em] text-[var(--brand-ink)]">
+                  banking view
+                </span>
+              </div>
+
+              <div className="mt-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted)]">主要影響產業</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {currentTaiwanMapping.affectedIndustries.map((industry) => (
+                    <span
+                      key={industry}
+                      className="rounded-full border border-[rgb(126_149_110_/_38%)] bg-white/78 px-3 py-1 text-xs text-[var(--foreground)]"
+                    >
+                      {industry}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                <div className="rounded-2xl border border-[var(--line)] bg-white/72 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted)]">傳導路徑</p>
+                  <ul className="mt-2 space-y-1.5 text-xs leading-5 text-[var(--muted)]">
+                    {currentTaiwanMapping.transmission.map((item) => (
+                      <li key={item} className="flex gap-2">
+                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--olive)]" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="rounded-2xl border border-[var(--line)] bg-white/72 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted)]">法金/交易室關注</p>
+                  <ul className="mt-2 space-y-1.5 text-xs leading-5 text-[var(--muted)]">
+                    {currentTaiwanMapping.financeDeskFocus.map((item) => (
+                      <li key={item} className="flex gap-2">
+                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--wheat)]" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="rounded-2xl border border-[var(--line)] bg-white/72 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted)]">早期觀察訊號</p>
+                  <ul className="mt-2 space-y-1.5 text-xs leading-5 text-[var(--muted)]">
+                    {currentTaiwanMapping.earlySignals.map((item) => (
+                      <li key={item} className="flex gap-2">
+                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--sea)]" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
           </article>
 
           <article className="paper-card p-5 md:p-6">
