@@ -47,6 +47,18 @@ type TaiwanIndustryMapping = {
   earlySignals: string[];
 };
 
+type TaiwanCompanyExposure = {
+  company: string;
+  ticker?: string;
+  homepage: string;
+  exposureLevel: "High" | "Medium" | "Low";
+  sector: string;
+  summary: string;
+  impactPath: string;
+  sensitivity: string;
+  watchItems: string[];
+};
+
 type DriverSignal = {
   id: string;
   label: string;
@@ -396,6 +408,553 @@ const TAIWAN_INDUSTRY_MAPPING: Record<CommodityKey, TaiwanIndustryMapping> = {
   },
 };
 
+const ENERGY_EXPOSURES: TaiwanCompanyExposure[] = [
+  {
+    company: "台塑石化",
+    ticker: "6505 TW",
+    homepage: "https://www.fpcc.com.tw/",
+    exposureLevel: "High",
+    sector: "煉油 / 石化原料",
+    summary: "原油是煉油與石化料源核心，油價與裂解價差會直接影響庫存評價與煉油毛利。",
+    impactPath: "原油價格 -> 進料成本 -> 汽柴油/石化品售價 -> 裂解價差與庫存損益。",
+    sensitivity: "屬於高曝險，但不是單純油價漲就一定受惠；關鍵在成品油、石化品報價是否同步轉嫁，以及庫存重估方向。",
+    watchItems: ["Brent-WTI spread", "亞洲煉油裂解價差", "石化品報價", "庫存評價損益"],
+  },
+  {
+    company: "台灣中油",
+    homepage: "https://www.cpc.com.tw/",
+    exposureLevel: "High",
+    sector: "能源進口 / 煉油 / 天然氣",
+    summary: "同時承擔原油與 LNG 進口，商品價格會傳導到國內油氣成本與能源政策。",
+    impactPath: "國際油氣價格 -> 進口成本 -> 國內油氣售價與政策吸收 -> 營運資金需求。",
+    sensitivity: "高曝險但政策性很強，價格影響常被油價公式、補貼、凍漲或吸收機制延後反映。",
+    watchItems: ["國內油價公式", "LNG 長約/現貨價", "政府能源政策", "台幣匯率"],
+  },
+  {
+    company: "長榮航空",
+    ticker: "2618 TW",
+    homepage: "https://www.evaair.com/",
+    exposureLevel: "High",
+    sector: "航空運輸",
+    summary: "航空燃油通常是航空公司最大變動成本之一，油價變動會牽動票價、燃油附加費與避險需求。",
+    impactPath: "原油/航油價格 -> 燃油成本 -> 營業成本 -> 票價與燃油附加費。",
+    sensitivity: "高曝險，短期取決於燃油避險部位與燃油附加費調整；中期看載客率與票價能否吸收成本。",
+    watchItems: ["Jet fuel crack spread", "燃油附加費", "載客率", "避險損益"],
+  },
+  {
+    company: "陽明海運",
+    ticker: "2609 TW",
+    homepage: "https://www.yangming.com/",
+    exposureLevel: "Medium",
+    sector: "貨櫃航運",
+    summary: "燃油價格會影響航運成本，但運價、船隊調度與旺淡季通常更能決定短期獲利。",
+    impactPath: "燃油價格 -> 船舶燃料成本 -> 航線成本 -> 運價與燃油附加費談判。",
+    sensitivity: "中高曝險；若運價低迷且燃油上升，毛利壓力較明顯，若運價強則可部分轉嫁。",
+    watchItems: ["Bunker fuel", "SCFI/FBX 運價", "燃油附加費", "航線供需"],
+  },
+];
+
+const NATURAL_GAS_EXPOSURES: TaiwanCompanyExposure[] = [
+  {
+    company: "台灣電力公司",
+    homepage: "https://www.taipower.com.tw/",
+    exposureLevel: "High",
+    sector: "電力 / 發電燃料",
+    summary: "天然氣與煤是台灣發電成本核心變數，燃料成本會影響台電虧損、電價政策與用電大戶成本。",
+    impactPath: "LNG/煤價 -> 發電燃料成本 -> 台電成本結構 -> 電價審議與產業用電成本。",
+    sensitivity: "高曝險但高度政策決定；即期燃料成本不一定立刻反映到電價，會透過政策時滯傳導。",
+    watchItems: ["台電燃料成本", "電價費率審議", "JKM LNG", "夏季尖峰備轉容量"],
+  },
+  {
+    company: "台積電",
+    ticker: "2330 TW",
+    homepage: "https://www.tsmc.com/",
+    exposureLevel: "Medium",
+    sector: "半導體 / 用電大戶",
+    summary: "天然氣不直接作為主要原料，但會透過電價與供電穩定性影響晶圓廠製造成本與資本支出規劃。",
+    impactPath: "燃料成本 -> 電價/供電穩定 -> 晶圓製造成本 -> 長約電力與再生能源策略。",
+    sensitivity: "中度曝險；單位產品價值高，能源成本不是唯一核心，但供電穩定與電價趨勢非常重要。",
+    watchItems: ["產業電價", "再生能源採購", "用電需求", "供電穩定事件"],
+  },
+  {
+    company: "中國鋼鐵",
+    ticker: "2002 TW",
+    homepage: "https://www.csc.com.tw/",
+    exposureLevel: "Medium",
+    sector: "鋼鐵 / 能源密集製造",
+    summary: "鋼鐵製程受電力、煤焦與天然氣等能源成本影響，能源價格也會影響下游客戶景氣。",
+    impactPath: "能源/煤價 -> 製造成本 -> 鋼品報價 -> 下游接單與毛利。",
+    sensitivity: "中高曝險；能源成本與鐵礦砂、鋼價週期需一起觀察，不能只看單一燃料。",
+    watchItems: ["鋼價盤價", "煤焦價格", "電價", "下游庫存"],
+  },
+  {
+    company: "台灣水泥",
+    ticker: "1101 TW",
+    homepage: "https://www.taiwancement.com/",
+    exposureLevel: "Medium",
+    sector: "水泥 / 儲能",
+    summary: "水泥是能源密集產業，煤電與替代燃料成本會影響熟料製造；同時也受儲能與能源轉型題材牽動。",
+    impactPath: "燃料/電價 -> 熟料成本 -> 水泥報價與毛利 -> 儲能布局價值。",
+    sensitivity: "中度曝險；需求端的營建景氣與中國水泥供需仍是重要變數。",
+    watchItems: ["煤價", "電價", "水泥報價", "儲能訂單"],
+  },
+];
+
+const GRAIN_EXPOSURES: TaiwanCompanyExposure[] = [
+  {
+    company: "大成長城",
+    ticker: "1210 TW",
+    homepage: "https://www.dachan.com/",
+    exposureLevel: "High",
+    sector: "飼料 / 肉品 / 食品",
+    summary: "黃豆、玉米與小麥會透過飼料與食品原料直接影響成本，是台灣農糧商品傳導最直接的代表公司之一。",
+    impactPath: "穀物價格 -> 飼料成本 -> 畜禽養殖成本 -> 肉品與食品毛利。",
+    sensitivity: "高曝險；若產品報價可調且庫存成本較低，壓力可延後或部分轉嫁。",
+    watchItems: ["CBOT 穀物", "豆粕/玉米價差", "飼料報價", "肉品價格"],
+  },
+  {
+    company: "卜蜂",
+    ticker: "1215 TW",
+    homepage: "https://www.cptwn.com.tw/",
+    exposureLevel: "High",
+    sector: "飼料 / 畜牧 / 食品",
+    summary: "飼料原料成本是營運核心變數，黃豆與玉米價格會影響養殖端與食品加工端毛利。",
+    impactPath: "黃豆/玉米 -> 飼料配方成本 -> 肉雞/豬肉成本 -> 食品售價。",
+    sensitivity: "高曝險；需看飼料配方調整、庫存採購與終端價格轉嫁速度。",
+    watchItems: ["飼料價格", "肉雞價格", "豆粕", "玉米進口成本"],
+  },
+  {
+    company: "統一企業",
+    ticker: "1216 TW",
+    homepage: "https://www.uni-president.com.tw/",
+    exposureLevel: "Medium",
+    sector: "食品 / 飲料 / 通路",
+    summary: "受小麥、黃豆油、糖、咖啡等多種原料影響，但品牌與通路能力讓成本轉嫁能力較一般代工廠佳。",
+    impactPath: "食品原料 -> 製造成本 -> 通路售價 -> 毛利率與促銷策略。",
+    sensitivity: "中度曝險；單一商品影響會被產品組合分散，需看整體食品原料籃子。",
+    watchItems: ["食品 CPI", "通路促銷", "原料採購合約", "毛利率"],
+  },
+  {
+    company: "大統益",
+    ticker: "1232 TW",
+    homepage: "https://www.ttet.com.tw/",
+    exposureLevel: "High",
+    sector: "黃豆壓榨 / 食用油 / 豆粕",
+    summary: "黃豆與豆油、豆粕價差直接影響壓榨利潤，是觀察黃豆油與飼料鏈的重要公司。",
+    impactPath: "黃豆進口成本 -> 壓榨 -> 豆油/豆粕售價 -> crush margin。",
+    sensitivity: "高曝險；重點不是黃豆價格單邊，而是豆油、豆粕與黃豆之間的壓榨價差。",
+    watchItems: ["Crush spread", "豆油價格", "豆粕價格", "黃豆進口到港成本"],
+  },
+];
+
+const WHEAT_EXPOSURES: TaiwanCompanyExposure[] = [
+  {
+    company: "聯華實業",
+    ticker: "1229 TW",
+    homepage: "https://www.lhic.com.tw/",
+    exposureLevel: "High",
+    sector: "麵粉 / 食品原料",
+    summary: "小麥是麵粉加工核心原料，國際小麥與匯率會影響麵粉報價與食品客戶成本。",
+    impactPath: "小麥價格 -> 進口成本 -> 麵粉報價 -> 烘焙與食品加工成本。",
+    sensitivity: "高曝險；若採購合約與庫存天數較長，價格變化會有時間差。",
+    watchItems: ["CBOT/MATIF 小麥", "USD/TWD", "麵粉報價", "黑海出口"],
+  },
+  ...GRAIN_EXPOSURES.slice(0, 3),
+];
+
+const SOFT_COMMODITY_EXPOSURES: TaiwanCompanyExposure[] = [
+  {
+    company: "統一超商",
+    ticker: "2912 TW",
+    homepage: "https://www.7-11.com.tw/",
+    exposureLevel: "Medium",
+    sector: "咖啡 / 鮮食 / 通路",
+    summary: "咖啡、糖、可可與乳品等原料會影響鮮食與飲品毛利，但通路規模與定價能力可分散衝擊。",
+    impactPath: "軟性商品價格 -> 飲品/甜點成本 -> 門市售價與促銷 -> 通路毛利。",
+    sensitivity: "中度曝險；單一商品成本通常不是決定性，需搭配人事、租金與促銷策略。",
+    watchItems: ["咖啡豆價格", "糖價", "鮮食毛利", "促銷頻率"],
+  },
+  {
+    company: "南僑",
+    ticker: "1702 TW",
+    homepage: "https://www.namchow.com.tw/",
+    exposureLevel: "Medium",
+    sector: "油脂 / 烘焙 / 餐飲食品",
+    summary: "油脂、小麥、糖與可可等食品原料會影響烘焙、冷凍麵糰與餐飲相關產品成本。",
+    impactPath: "食品原料 -> 加工成本 -> 餐飲/烘焙客戶報價 -> 毛利率。",
+    sensitivity: "中度曝險；產品組合多元，成本壓力通常透過報價與產品結構逐步反映。",
+    watchItems: ["糖價", "油脂價格", "麵粉價格", "餐飲需求"],
+  },
+  {
+    company: "宏亞食品",
+    ticker: "1236 TW",
+    homepage: "https://www.hunya.com.tw/",
+    exposureLevel: "Medium",
+    sector: "巧克力 / 休閒食品",
+    summary: "可可與糖是巧克力及甜食成本的重要來源，商品價格上升會壓縮促銷與毛利空間。",
+    impactPath: "可可/糖價 -> 原料成本 -> 巧克力與甜食售價 -> 毛利與促銷。",
+    sensitivity: "中高曝險；品牌與節慶需求可提供部分轉嫁，但可可急漲時壓力明顯。",
+    watchItems: ["ICE cocoa", "糖價", "節慶銷售", "通路促銷"],
+  },
+];
+
+const COPPER_EXPOSURES: TaiwanCompanyExposure[] = [
+  {
+    company: "華新麗華",
+    ticker: "1605 TW",
+    homepage: "https://www.walsin.com/",
+    exposureLevel: "High",
+    sector: "電線電纜 / 銅材",
+    summary: "銅是電線電纜核心原料，價格會直接影響存貨評價、接單報價與工程客戶成本。",
+    impactPath: "銅價 -> 銅線/銅桿成本 -> 電線電纜報價 -> 電力與營建工程成本。",
+    sensitivity: "高曝險；通常具報價轉嫁機制，但庫存成本與報價時差會造成短期毛利波動。",
+    watchItems: ["LME/COMEX 銅", "台電強韌電網標案", "銅庫存", "美元匯率"],
+  },
+  {
+    company: "大亞電線電纜",
+    ticker: "1609 TW",
+    homepage: "https://www.taya.com.tw/",
+    exposureLevel: "High",
+    sector: "電線電纜 / 電力基建",
+    summary: "電力基建、再生能源與資料中心用電需求會放大銅材需求，銅價影響成本與接單毛利。",
+    impactPath: "銅價 -> 線纜成本 -> 電網/綠電工程報價 -> 毛利與營運資金。",
+    sensitivity: "高曝險；若台灣電網投資持續，需求面可抵消部分成本壓力。",
+    watchItems: ["電網標案", "再生能源建置", "銅價", "在手訂單"],
+  },
+  {
+    company: "士林電機",
+    ticker: "1503 TW",
+    homepage: "https://www.seec.com.tw/",
+    exposureLevel: "Medium",
+    sector: "電力設備 / 變壓器",
+    summary: "變壓器、開關設備與電力設備會使用銅與鋼材，受電網投資與材料成本雙重影響。",
+    impactPath: "銅價 -> 電力設備材料成本 -> 標案報價 -> 毛利率。",
+    sensitivity: "中度曝險；需求端的台電投資與資料中心建置也會推升訂單。",
+    watchItems: ["台電強韌電網", "銅價", "設備交期", "工程標案"],
+  },
+  {
+    company: "台達電子",
+    ticker: "2308 TW",
+    homepage: "https://www.deltaww.com/",
+    exposureLevel: "Low",
+    sector: "電源管理 / AI 電力基建",
+    summary: "銅價不是台達核心變數，但 AI 伺服器、資料中心與電力電子需求會與銅需求同向。",
+    impactPath: "AI 電力需求 -> 電源/散熱/基建訂單 -> 間接受惠銅需求主題。",
+    sensitivity: "低直接曝險、高主題連動；台達更偏需求受惠，不宜把它視為銅成本敏感公司。",
+    watchItems: ["AI 電源訂單", "資料中心 capex", "電力效率需求", "銅價趨勢"],
+  },
+];
+
+const ALUMINUM_EXPOSURES: TaiwanCompanyExposure[] = [
+  {
+    company: "巧新科技",
+    ticker: "1563 TW",
+    homepage: "https://www.superalloy.tw/",
+    exposureLevel: "Medium",
+    sector: "鋁合金輪圈 / 汽車零件",
+    summary: "鋁合金是汽車輪圈與輕量化零件重要材料，鋁價會影響材料成本與客戶報價。",
+    impactPath: "鋁價 -> 鋁合金材料成本 -> 汽車零件報價 -> 毛利率。",
+    sensitivity: "中高曝險；高階汽車零件通常有技術與客戶認證門檻，成本轉嫁能力優於一般加工廠。",
+    watchItems: ["LME 鋁", "汽車銷量", "高階車款訂單", "客戶報價調整"],
+  },
+  {
+    company: "和大工業",
+    ticker: "1536 TW",
+    homepage: "https://www.hota.com.tw/",
+    exposureLevel: "Medium",
+    sector: "汽車傳動 / 電動車零件",
+    summary: "鋁價影響車用零件輕量化材料成本，但公司更主要受汽車與 EV 供應鏈需求驅動。",
+    impactPath: "鋁/鋼材成本 -> 汽車零件成本 -> 車廠供應鏈報價。",
+    sensitivity: "中度曝險；材料只是成本一環，實際影響需搭配車廠訂單與產品組合。",
+    watchItems: ["EV 銷量", "鋁價", "車廠訂單", "匯率"],
+  },
+  {
+    company: "南亞塑膠",
+    ticker: "1303 TW",
+    homepage: "https://www.npc.com.tw/",
+    exposureLevel: "Low",
+    sector: "包材 / 塑化 / 電子材料",
+    summary: "鋁本身不是主要原料，但包材與電子材料鏈會同時受原物料、能源與終端需求影響。",
+    impactPath: "包材需求 -> 原料成本 -> 客戶報價與產品組合。",
+    sensitivity: "低直接曝險；較適合當作包材與工業材料景氣觀察，而非鋁價純敏感標的。",
+    watchItems: ["包材需求", "能源成本", "塑化價差", "電子材料景氣"],
+  },
+];
+
+const PRECIOUS_METAL_EXPOSURES: TaiwanCompanyExposure[] = [
+  {
+    company: "台灣銀行",
+    homepage: "https://www.bot.com.tw/",
+    exposureLevel: "Medium",
+    sector: "黃金存摺 / 貴金屬通路",
+    summary: "提供黃金相關交易與投資服務，金價與避險需求會影響投資人交易熱度。",
+    impactPath: "金價/避險需求 -> 黃金交易與存摺需求 -> 財富管理與通路服務。",
+    sensitivity: "中度曝險；較偏交易量與客戶需求，不是持有大量金價方向性曝險。",
+    watchItems: ["金價", "美元", "實質利率", "避險交易量"],
+  },
+  {
+    company: "元大投信",
+    homepage: "https://www.yuantafunds.com/",
+    exposureLevel: "Medium",
+    sector: "ETF / 投資商品",
+    summary: "貴金屬行情會帶動相關 ETF、基金與資產配置需求，是觀察投資商品需求的窗口。",
+    impactPath: "金銀價格 -> ETF/基金需求 -> 管理資產規模與交易熱度。",
+    sensitivity: "中度曝險；主要反映在產品需求與 AUM，而非商品成本。",
+    watchItems: ["ETF 流量", "金銀比", "美元指數", "實質利率"],
+  },
+  {
+    company: "國泰投信",
+    homepage: "https://www.cathaysite.com.tw/",
+    exposureLevel: "Medium",
+    sector: "ETF / 資產配置",
+    summary: "金價與避險情緒會影響投資人對商品型與避險型資產的配置意願。",
+    impactPath: "市場風險/利率 -> 黃金需求 -> ETF 與基金配置需求。",
+    sensitivity: "中度曝險；適合看作金融商品需求連動，不宜解讀為金價成本敏感。",
+    watchItems: ["ETF 申贖", "VIX", "實質利率", "美元"],
+  },
+];
+
+const STAINLESS_EXPOSURES: TaiwanCompanyExposure[] = [
+  {
+    company: "燁聯鋼鐵",
+    homepage: "https://www.yusco.com.tw/",
+    exposureLevel: "High",
+    sector: "不鏽鋼",
+    summary: "鎳是 300 系不鏽鋼重要成本，鎳價會影響不鏽鋼盤價、庫存評價與接單毛利。",
+    impactPath: "鎳價 -> 不鏽鋼原料成本 -> 盤價 -> 下游客戶補庫。",
+    sensitivity: "高曝險；但需同時看鉻鐵、廢鋼與不鏽鋼需求，不能只看鎳價。",
+    watchItems: ["LME 鎳", "不鏽鋼盤價", "中國/印尼供給", "庫存水位"],
+  },
+  {
+    company: "唐榮",
+    ticker: "2035 TW",
+    homepage: "https://www.tangeng.com.tw/",
+    exposureLevel: "High",
+    sector: "不鏽鋼",
+    summary: "不鏽鋼產品受鎳價與鋼市需求牽動，原料價格波動會影響存貨與報價節奏。",
+    impactPath: "鎳/鉻/廢鋼 -> 不鏽鋼成本 -> 盤價與接單。",
+    sensitivity: "高曝險；若下游需求弱，原料上漲較難完整轉嫁。",
+    watchItems: ["鎳價", "不鏽鋼庫存", "盤價", "外銷接單"],
+  },
+  {
+    company: "中國鋼鐵",
+    ticker: "2002 TW",
+    homepage: "https://www.csc.com.tw/",
+    exposureLevel: "Medium",
+    sector: "鋼鐵 / 特殊鋼",
+    summary: "鎳、鋅、煤焦與鐵礦砂等會共同影響鋼鐵成本與產品報價。",
+    impactPath: "金屬/能源成本 -> 鋼品成本 -> 盤價與下游需求。",
+    sensitivity: "中度曝險；是整體金屬與製造景氣指標，不是單一金屬純敏感公司。",
+    watchItems: ["鋼價盤價", "原料成本", "營建需求", "製造業景氣"],
+  },
+];
+
+const ELECTRONICS_METAL_EXPOSURES: TaiwanCompanyExposure[] = [
+  {
+    company: "日月光投控",
+    ticker: "3711 TW",
+    homepage: "https://www.aseglobal.com/",
+    exposureLevel: "Low",
+    sector: "半導體封測",
+    summary: "錫、銀與特殊金屬會進入焊料、封裝與材料鏈，但對封測公司通常不是最大成本項。",
+    impactPath: "電子金屬價格 -> 焊料/封裝材料 -> 封測成本與供應安全。",
+    sensitivity: "低直接曝險；更重要的是終端半導體需求與客戶稼動率。",
+    watchItems: ["半導體景氣", "錫價", "銀價", "材料交期"],
+  },
+  {
+    company: "欣興電子",
+    ticker: "3037 TW",
+    homepage: "https://www.unimicron.com/",
+    exposureLevel: "Medium",
+    sector: "PCB / IC 載板",
+    summary: "銅箔、錫焊料與貴金屬材料影響 PCB/載板成本，但高階產品需求更是毛利關鍵。",
+    impactPath: "銅/錫/貴金屬 -> PCB 材料成本 -> 客戶報價與毛利。",
+    sensitivity: "中度曝險；材料價格與 ABF/HDI 需求週期需一起看。",
+    watchItems: ["銅箔報價", "錫價", "ABF 載板需求", "AI 伺服器"],
+  },
+  {
+    company: "南亞電路板",
+    ticker: "8046 TW",
+    homepage: "https://www.nanyapcb.com.tw/",
+    exposureLevel: "Medium",
+    sector: "PCB / 載板",
+    summary: "電子金屬與銅箔價格會影響材料成本，但產品組合與稼動率通常更主導獲利。",
+    impactPath: "金屬材料 -> 載板/PCB 成本 -> 報價與毛利。",
+    sensitivity: "中度曝險；若 AI 需求強，材料上漲比較容易被高階產品吸收。",
+    watchItems: ["銅箔", "錫價", "載板報價", "稼動率"],
+  },
+];
+
+const BATTERY_CRITICAL_EXPOSURES: TaiwanCompanyExposure[] = [
+  {
+    company: "台灣水泥",
+    ticker: "1101 TW",
+    homepage: "https://www.taiwancement.com/",
+    exposureLevel: "Medium",
+    sector: "儲能 / 電池布局",
+    summary: "鋰、鈷、鎳價格會影響電池材料與儲能系統成本，也關係到能源轉型投資回收。",
+    impactPath: "電池金屬 -> cell/儲能系統成本 -> 儲能案場報價與毛利。",
+    sensitivity: "中度曝險；公司不是單純礦商，商品價格更多是儲能成本與投資節奏變數。",
+    watchItems: ["碳酸鋰", "電池 cell 價格", "儲能標案", "電價制度"],
+  },
+  {
+    company: "康普材料",
+    ticker: "4739 TW",
+    homepage: "https://www.coremaxcorp.com/",
+    exposureLevel: "Medium",
+    sector: "電池材料 / 特用化學",
+    summary: "與電池材料鏈連動，鎳鈷錳等金屬價格會影響材料成本與客戶採購節奏。",
+    impactPath: "鎳/鈷/鋰 -> 電池材料成本 -> 客戶採購與庫存調整。",
+    sensitivity: "中度曝險；需看產品組合、長約價格與下游客戶需求，不能只用金屬現貨價推估。",
+    watchItems: ["鎳鈷價格", "電池需求", "客戶庫存", "材料報價"],
+  },
+  {
+    company: "台達電子",
+    ticker: "2308 TW",
+    homepage: "https://www.deltaww.com/",
+    exposureLevel: "Low",
+    sector: "電源 / 儲能系統",
+    summary: "鋰電池成本會影響儲能系統，但台達更偏電力電子與系統整合需求受惠。",
+    impactPath: "電池成本下降 -> 儲能滲透率 -> 電源與系統整合需求。",
+    sensitivity: "低直接曝險；商品價格下降反而可能刺激儲能與電源管理需求。",
+    watchItems: ["儲能案場", "電池價格", "資料中心電源", "電網投資"],
+  },
+];
+
+const COMPOUND_SEMI_EXPOSURES: TaiwanCompanyExposure[] = [
+  {
+    company: "穩懋半導體",
+    ticker: "3105 TW",
+    homepage: "https://www.winfoundry.com/",
+    exposureLevel: "Medium",
+    sector: "GaAs / 化合物半導體",
+    summary: "鎵與鍺相關材料屬於化合物半導體供應鏈關鍵投入，出口管制與供給緊縮會影響安全庫存。",
+    impactPath: "鎵/鍺材料 -> 化合物半導體晶圓 -> RF/通訊元件供應。",
+    sensitivity: "中度曝險；材料成本不是唯一變數，但供應安全與交期風險很關鍵。",
+    watchItems: ["中國出口管制", "GaAs/GaN 需求", "材料交期", "客戶庫存"],
+  },
+  {
+    company: "宏捷科",
+    ticker: "8086 TW",
+    homepage: "https://www.awsc.com.tw/",
+    exposureLevel: "Medium",
+    sector: "化合物半導體",
+    summary: "化合物半導體製程與鎵系材料連動，需關注材料供應、通訊需求與客戶庫存。",
+    impactPath: "鎵材料 -> 晶圓代工成本與供應 -> RF 元件需求。",
+    sensitivity: "中度曝險；需求週期通常比材料價格更大，但材料斷供會造成營運風險。",
+    watchItems: ["RF 需求", "鎵出口量", "材料庫存", "智慧手機/通訊訂單"],
+  },
+  {
+    company: "漢磊",
+    ticker: "3707 TW",
+    homepage: "https://www.epi.episil.com/",
+    exposureLevel: "Medium",
+    sector: "功率半導體 / 磊晶",
+    summary: "GaN/功率半導體題材與鎵材料供應相關，材料可得性會影響擴產與供應鏈安全。",
+    impactPath: "鎵材料 -> GaN/功率元件 -> 電源、車用與工業應用。",
+    sensitivity: "中度曝險；應區分材料成本與產業需求，不能把鎵價視為公司獲利唯一驅動。",
+    watchItems: ["GaN 需求", "功率半導體景氣", "材料供應", "出口管制"],
+  },
+];
+
+const TEXTILE_EXPOSURES: TaiwanCompanyExposure[] = [
+  {
+    company: "遠東新世紀",
+    ticker: "1402 TW",
+    homepage: "https://www.fenc.com/",
+    exposureLevel: "Medium",
+    sector: "紡織 / 聚酯 / 成衣材料",
+    summary: "棉花價格會影響天然纖維競爭與成衣原料籃子，也會與聚酯替代需求互相拉扯。",
+    impactPath: "棉價 -> 紗線/布料成本 -> 聚酯替代效應 -> 品牌訂單。",
+    sensitivity: "中度曝險；遠東新更偏聚酯與垂直整合，棉價是相對價格與需求替代變數。",
+    watchItems: ["棉價", "聚酯價差", "品牌庫存", "成衣訂單"],
+  },
+  {
+    company: "儒鴻",
+    ticker: "1476 TW",
+    homepage: "https://www.eclat.com.tw/",
+    exposureLevel: "Medium",
+    sector: "機能布料 / 成衣",
+    summary: "棉花與化纖價格影響布料成本，但高階機能布料更受品牌訂單與產品 mix 影響。",
+    impactPath: "纖維價格 -> 布料成本 -> 品牌報價 -> 毛利率。",
+    sensitivity: "中度曝險；原料可轉嫁程度與品牌訂單強弱比棉價本身更重要。",
+    watchItems: ["品牌庫存", "棉價", "化纖價格", "接單能見度"],
+  },
+  {
+    company: "聚陽實業",
+    ticker: "1477 TW",
+    homepage: "https://www.makalot.com.tw/",
+    exposureLevel: "Medium",
+    sector: "成衣代工",
+    summary: "棉花與布料成本會影響成衣代工報價，但主要仍看客戶訂單、庫存循環與產品組合。",
+    impactPath: "棉價/布料 -> 成衣成本 -> 客戶報價 -> 毛利與訂單。",
+    sensitivity: "中度曝險；若品牌庫存去化順利，原料壓力較容易被吸收。",
+    watchItems: ["美國零售庫存", "品牌訂單", "棉價", "匯率"],
+  },
+];
+
+const ZINC_LEAD_EXPOSURES: TaiwanCompanyExposure[] = [
+  {
+    company: "燁輝企業",
+    ticker: "2023 TW",
+    homepage: "https://www.yiehphui.com.tw/",
+    exposureLevel: "Medium",
+    sector: "鍍鋅鋼材",
+    summary: "鋅是鍍鋅鋼材重要投入，鋅價會影響鍍鋅加工成本與鋼材報價。",
+    impactPath: "鋅價 -> 鍍鋅成本 -> 鋼材報價 -> 建材與家電需求。",
+    sensitivity: "中高曝險；需搭配鋼價、營建與家電需求一起判斷。",
+    watchItems: ["LME 鋅", "鋼價", "鍍鋅加工費", "營建需求"],
+  },
+  {
+    company: "廣隆光電",
+    ticker: "1537 TW",
+    homepage: "https://www.klb.com.tw/",
+    exposureLevel: "High",
+    sector: "鉛酸電池",
+    summary: "鉛是鉛酸電池核心原料，鉛價與回收鉛供給會直接影響電池成本與毛利。",
+    impactPath: "鉛價 -> 電池極板成本 -> 電池售價 -> 毛利率。",
+    sensitivity: "高曝險；若回收料供給緊或鉛價急漲，成本壓力會較明顯。",
+    watchItems: ["LME 鉛", "回收鉛價", "汽車替換需求", "匯率"],
+  },
+  {
+    company: "中國鋼鐵",
+    ticker: "2002 TW",
+    homepage: "https://www.csc.com.tw/",
+    exposureLevel: "Low",
+    sector: "鋼鐵 / 下游材料",
+    summary: "鋅對中鋼不是主要原料，但鋅價與鍍鋅鋼需求可作為下游建材與製造景氣觀察。",
+    impactPath: "鋅/鍍鋅需求 -> 下游建材景氣 -> 鋼品需求。",
+    sensitivity: "低直接曝險；比較適合作為景氣輔助訊號。",
+    watchItems: ["鋼價盤價", "鍍鋅需求", "營建景氣", "製造業 PMI"],
+  },
+];
+
+const TAIWAN_COMPANY_EXPOSURES: Record<CommodityKey, TaiwanCompanyExposure[]> = {
+  soybean: GRAIN_EXPOSURES,
+  wheat: WHEAT_EXPOSURES,
+  corn: GRAIN_EXPOSURES,
+  coffee: SOFT_COMMODITY_EXPOSURES,
+  cocoa: SOFT_COMMODITY_EXPOSURES,
+  sugar: SOFT_COMMODITY_EXPOSURES,
+  soybeanOil: GRAIN_EXPOSURES,
+  cotton: TEXTILE_EXPOSURES,
+  oil: ENERGY_EXPOSURES,
+  brent: ENERGY_EXPOSURES,
+  naturalGas: NATURAL_GAS_EXPOSURES,
+  copper: COPPER_EXPOSURES,
+  aluminum: ALUMINUM_EXPOSURES,
+  gold: PRECIOUS_METAL_EXPOSURES,
+  silver: [...PRECIOUS_METAL_EXPOSURES, ...ELECTRONICS_METAL_EXPOSURES.slice(0, 2)],
+  nickel: STAINLESS_EXPOSURES,
+  zinc: ZINC_LEAD_EXPOSURES,
+  lead: ZINC_LEAD_EXPOSURES,
+  tin: ELECTRONICS_METAL_EXPOSURES,
+  lithium: BATTERY_CRITICAL_EXPOSURES,
+  cobalt: BATTERY_CRITICAL_EXPOSURES,
+  gallium: COMPOUND_SEMI_EXPOSURES,
+  germanium: COMPOUND_SEMI_EXPOSURES,
+};
+
 const FALLBACK_COMPANIES: Record<CommodityKey, string[]> = {
   soybean: ["Cargill", "ADM", "Bunge"],
   wheat: ["Cargill", "Viterra", "Louis Dreyfus"],
@@ -623,6 +1182,7 @@ export default function MapClient() {
   const currentProfile = commodityProfiles[themeKey];
   const compareProfile = commodityProfiles[compareKey];
   const currentTaiwanMapping = TAIWAN_INDUSTRY_MAPPING[themeKey];
+  const currentCompanyExposures = TAIWAN_COMPANY_EXPOSURES[themeKey];
   const selectedInsight =
     currentTheme.insights[panelLayer === "trade" && currentTheme.insights.length > 1 ? 1 : 0] ?? currentTheme.insights[0];
   const overlapRegions = sharedRegions(themeKey, compareKey);
@@ -2322,6 +2882,98 @@ export default function MapClient() {
                     ))}
                   </ul>
                 </div>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-[rgb(174_133_83_/_28%)] bg-[linear-gradient(135deg,rgb(255_250_239_/_84%),rgb(247_251_242_/_72%))] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">Taiwan Company Exposure</p>
+                  <h4 className="mt-1 text-lg font-semibold text-[var(--brand-ink)]">受{currentProfile.zhName}影響的台灣企業</h4>
+                  <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+                    以公開業務定位與產業鏈傳導判斷曝險，不硬估沒有可靠基礎的價格彈性。
+                  </p>
+                </div>
+                <span className="rounded-full bg-[rgb(174_133_83_/_14%)] px-3 py-1 text-[10px] uppercase tracking-[0.12em] text-[var(--brand-ink)]">
+                  equity lens
+                </span>
+              </div>
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                {currentCompanyExposures.map((company) => (
+                  <details
+                    key={`${themeKey}-${company.company}`}
+                    className="group overflow-hidden rounded-2xl border border-[var(--line)] bg-white/78 shadow-[0_14px_30px_rgb(31_47_31_/_5%)]"
+                  >
+                    <summary className="cursor-pointer list-none p-4 marker:hidden">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h5 className="text-base font-semibold text-[var(--foreground)]">{company.company}</h5>
+                            {company.ticker ? (
+                              <span className="rounded-full border border-[var(--line)] px-2 py-0.5 text-[10px] tracking-[0.12em] text-[var(--muted)]">
+                                {company.ticker}
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-[var(--muted)]">{company.sector}</p>
+                        </div>
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${
+                            company.exposureLevel === "High"
+                              ? "bg-[#8b3f32] text-white"
+                              : company.exposureLevel === "Medium"
+                                ? "bg-[var(--wheat)] text-white"
+                                : "bg-[rgb(126_149_110_/_16%)] text-[var(--brand-ink)]"
+                          }`}
+                        >
+                          {company.exposureLevel}
+                        </span>
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-[var(--muted)]">{company.summary}</p>
+                      <div className="mt-3 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.12em] text-[var(--muted)]">
+                        <span>點開看完整研究</span>
+                        <span className="transition group-open:rotate-45">+</span>
+                      </div>
+                    </summary>
+
+                    <div className="border-t border-[var(--line)] bg-[rgb(247_251_242_/_72%)] p-4">
+                      <div className="grid gap-3 text-xs leading-5 text-[var(--muted)] md:grid-cols-2">
+                        <div className="rounded-xl border border-[var(--line)] bg-white/70 p-3">
+                          <p className="font-semibold uppercase tracking-[0.14em] text-[var(--brand-ink)]">影響路徑</p>
+                          <p className="mt-2">{company.impactPath}</p>
+                        </div>
+                        <div className="rounded-xl border border-[var(--line)] bg-white/70 p-3">
+                          <p className="font-semibold uppercase tracking-[0.14em] text-[var(--brand-ink)]">敏感度判斷</p>
+                          <p className="mt-2">{company.sensitivity}</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 rounded-xl border border-[var(--line)] bg-white/70 p-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--brand-ink)]">觀察指標</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {company.watchItems.map((item) => (
+                            <span
+                              key={item}
+                              className="rounded-full border border-[rgb(126_149_110_/_30%)] bg-white px-2.5 py-1 text-[11px] text-[var(--muted)]"
+                            >
+                              {item}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <a
+                        href={company.homepage}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-3 inline-flex rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--brand-ink)] transition hover:border-[var(--olive)] hover:bg-[#eef3e6]"
+                      >
+                        前往公司首頁
+                      </a>
+                    </div>
+                  </details>
+                ))}
               </div>
             </div>
           </article>
