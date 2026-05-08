@@ -2077,6 +2077,9 @@ export default function MapClient() {
             <Link href="/topics" className="rounded-full border border-[var(--line)] bg-white/65 px-4 py-2">
               Topics
             </Link>
+            <Link href="/vessels" className="rounded-full border border-[var(--line)] bg-white/65 px-4 py-2">
+              Vessel Map
+            </Link>
             <Link href="/about" className="rounded-full border border-[var(--line)] bg-white/65 px-4 py-2">
               About
             </Link>
@@ -2691,13 +2694,13 @@ export default function MapClient() {
                         : "border-[var(--line)] bg-white/80 text-[var(--muted)]"
                     }`}
                   >
-                    <span>Vessels + Ports</span>
+                    <span>AIS samples + Ports</span>
                     <span className="font-semibold">{showVesselLayer ? "ON" : "OFF"}</span>
                   </button>
                 </div>
 
                 <div className="mt-3 rounded-xl border border-[var(--line)] bg-white/82 px-2.5 py-2">
-                  <p className="text-[10px] uppercase tracking-[0.12em] text-[var(--muted)]">Vessel Filter</p>
+                  <p className="text-[10px] uppercase tracking-[0.12em] text-[var(--muted)]">AIS Sample Filter</p>
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {currentVesselTypes.map((type) => (
                       <span
@@ -2805,8 +2808,8 @@ export default function MapClient() {
                   <p>Risk events：{visiblePipelineRiskEvents.length}</p>
                   <p>顯示點位：{visibleSitePoints.length}</p>
                   <p>總點位：{currentSitePoints.length}</p>
-                  <p>Vessels：{currentVesselPoints.length}</p>
-                  <p>往台灣/近台灣：{vesselsNearTaiwan}</p>
+                  <p>AIS 示範船位：{currentVesselPoints.length}</p>
+                  <p>示範近台灣：{vesselsNearTaiwan}</p>
                 </div>
 
                 {activeSitePoint ? (
@@ -2885,7 +2888,7 @@ export default function MapClient() {
 
                 {activeVesselPoint && showVesselLayer ? (
                   <div className="mt-3 rounded-xl border border-[rgb(47_123_143_/_35%)] bg-[rgb(47_123_143_/_8%)] px-3 py-2 text-[11px] text-[var(--muted)]">
-                    <p className="font-semibold tracking-[0.12em] text-[#245d6d]">Selected Vessel</p>
+                    <p className="font-semibold tracking-[0.12em] text-[#245d6d]">Selected AIS Sample</p>
                     <p className="mt-1 text-[var(--brand-ink)]">{activeVesselPoint.name}</p>
                     <p>
                       {VESSEL_TYPE_LABELS[activeVesselPoint.vesselType]} · {activeVesselPoint.speedKnots.toFixed(1)} kn
@@ -2894,6 +2897,9 @@ export default function MapClient() {
                     <p>ETA：{activeVesselPoint.eta}</p>
                     <p>{activeVesselPoint.routeHint}</p>
                     <p className="mt-1 rounded-lg bg-white/70 px-2 py-1 text-[10px]">{activeVesselPoint.commodityHint}</p>
+                    <p className="mt-1 rounded-lg border border-[rgb(47_123_143_/_18%)] bg-white/80 px-2 py-1 text-[10px] text-[#245d6d]">
+                      示範資料，非全球即時船舶全量。
+                    </p>
                   </div>
                 ) : null}
 
@@ -2944,7 +2950,7 @@ export default function MapClient() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="inline-block h-0 w-0 border-x-[5px] border-b-[9px] border-x-transparent border-b-[#2f7b8f]" />
-                    AIS 船舶點位
+                    AIS 示範船位（非全量）
                   </div>
                 </div>
               </aside>
@@ -3313,7 +3319,7 @@ export default function MapClient() {
                   <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">Physical Flow & Shipping Risk</p>
                   <h4 className="mt-1 text-lg font-semibold text-[var(--brand-ink)]">{currentLogisticsProfile.title}</h4>
                   <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
-                    這裡不是逐船追蹤，而是把航線、港口、海峽與台灣到港風險轉成商品供需判讀。
+                    這裡不是全球逐船追蹤，而是把航線、港口、海峽與台灣到港風險轉成商品供需判讀。
                   </p>
                 </div>
                 <button
@@ -3323,9 +3329,14 @@ export default function MapClient() {
                     showVesselLayer ? "bg-[#2f7b8f] text-white" : "border border-[rgb(47_123_143_/_34%)] bg-white/82 text-[#245d6d] hover:bg-[rgb(47_123_143_/_8%)]"
                   }`}
                 >
-                  {showVesselLayer ? "AIS watch on" : "開啟 AIS 輔助層"}
+                  {showVesselLayer ? "AIS samples on" : "顯示 AIS 示範點"}
                 </button>
               </div>
+
+              <p className="mt-3 rounded-2xl border border-[rgb(47_123_143_/_22%)] bg-white/76 px-3 py-2 text-xs leading-5 text-[var(--muted)]">
+                重要說明：目前地圖只放少量 AIS-ready sample，用來展示未來接入 Spire、MarineTraffic、VesselFinder 或 AISHub
+                之後的互動方式；它不是全球即時船舶資料，也不能代表全世界只有這幾艘船。
+              </p>
 
               <div className="mt-4 grid gap-3 lg:grid-cols-2">
                 <div className="rounded-2xl border border-[rgb(47_123_143_/_24%)] bg-white/82 p-3 lg:col-span-2">
@@ -3353,7 +3364,7 @@ export default function MapClient() {
                     <div className="rounded-xl border border-[var(--line)] bg-[rgb(247_251_242_/_82%)] p-3">
                       <p className="text-[10px] uppercase tracking-[0.14em] text-[var(--muted)]">Taiwan Watch</p>
                       <p className="mt-1 text-2xl font-semibold text-[var(--brand-ink)]">{vesselsNearTaiwan}</p>
-                      <p className="text-[11px] text-[var(--muted)]">AIS-ready vessels</p>
+                      <p className="text-[11px] text-[var(--muted)]">sample vessels near Taiwan</p>
                     </div>
                     <div className="rounded-xl border border-[var(--line)] bg-[rgb(247_251_242_/_82%)] p-3">
                       <p className="text-[10px] uppercase tracking-[0.14em] text-[var(--muted)]">Cargo Signal</p>
@@ -3461,9 +3472,9 @@ export default function MapClient() {
 
               <div className="mt-3 rounded-2xl border border-[rgb(47_123_143_/_22%)] bg-white/78 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted)]">AIS Watchlist & Cargo Inference</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted)]">AIS Sample Watchlist & Cargo Inference</p>
                   <span className="rounded-full border border-[rgb(47_123_143_/_24%)] bg-[rgb(47_123_143_/_8%)] px-2.5 py-1 text-[10px] text-[#245d6d]">
-                    sample now / live-ready
+                    sample data · not global coverage
                   </span>
                 </div>
                 <div className="mt-2 space-y-2">

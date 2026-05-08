@@ -63,7 +63,7 @@ export type CargoSignal = {
 };
 
 export const vesselLayerSourceNote =
-  "V1 uses AIS-ready sample vessel points. Connect a commercial AIS feed such as Spire, MarineTraffic, VesselFinder, or AISHub to replace these points with live positions.";
+  "目前為 AIS-ready 示範船位，僅用來展示航線與貨物推估的產品邏輯，非全球即時船舶全量資料。若接入 Spire、MarineTraffic、VesselFinder 或 AISHub，可替換為 live vessel positions。";
 
 const BULK_COMMODITIES: CommodityKey[] = [
   "soybean",

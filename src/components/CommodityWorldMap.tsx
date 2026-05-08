@@ -987,17 +987,6 @@ export default function CommodityWorldMap({
                         {point.name}
                       </text>
                     </>
-                  ) : !compact ? (
-                    <text
-                      x={position.x + 10}
-                      y={position.y + 4}
-                      fontSize={9}
-                      fontWeight={800}
-                      fill={color}
-                      style={{ paintOrder: "stroke", stroke: "rgba(255,255,255,0.82)", strokeWidth: 3 }}
-                    >
-                      {point.name}
-                    </text>
                   ) : null}
                 </g>
               );

@@ -45,6 +45,9 @@ export default async function Home() {
             <Link href="/map" className="rounded-full border border-[var(--line)] bg-white/65 px-4 py-2 hover:bg-white">
               Interactive Map
             </Link>
+            <Link href="/vessels" className="rounded-full border border-[var(--line)] bg-white/65 px-4 py-2 hover:bg-white">
+              Vessel Map
+            </Link>
             <Link href="/topics" className="rounded-full border border-[var(--line)] bg-white/65 px-4 py-2 hover:bg-white">
               Latest Analysis
             </Link>
@@ -112,6 +115,21 @@ export default async function Home() {
               </Link>
             </div>
           </article>
+        </section>
+
+        <section className="paper-card grid gap-4 p-7 md:grid-cols-[0.8fr,1.2fr] md:p-8">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">03 / Vessel Map</p>
+            <h2 className="mt-2 font-[family-name:var(--font-display)] text-4xl">Shipping Intelligence</h2>
+            <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+              船舶資訊獨立成一頁，避免和商品地圖混在一起。先用 AIS-ready sample 展示點位、船型、目的港與 ETA，未來可接 live AIS。
+            </p>
+          </div>
+          <div className="flex items-end justify-start md:justify-end">
+            <Link href="/vessels" className="rounded-full bg-[var(--brand-ink)] px-5 py-2.5 text-sm text-white transition hover:opacity-90">
+              進入 Vessel Map
+            </Link>
+          </div>
         </section>
       </main>
     </div>
